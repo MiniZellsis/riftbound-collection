@@ -8,5 +8,10 @@
   <body>
     <h1>Ma collection Riftbound</h1>
     <p>Bienvenue {{ pseudo }} !</p>
+    <p>{{ nb_cartes }} cartes dans la base de données.</p>
+
+    {% for carte in apercu %}
+    <img src="{{ carte.image_url }}" alt="{{ carte.nom }}" width="150" />
+    {% endfor %}
   </body>
 </html>
