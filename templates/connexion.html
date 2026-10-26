@@ -1,0 +1,18 @@
+{% extends "base.html" %} {% block titre %}Connexion{% endblock %} {% block
+contenu %}
+<h1>Connexion</h1>
+
+<form method="post" class="formulaire">
+  {{ form.hidden_tag() }} {% for champ in [form.pseudo, form.mot_de_passe] %}
+  <div class="champ">
+    {{ champ.label }} {{ champ() }} {% for erreur in champ.errors %}
+    <p class="erreur-champ">{{ erreur }}</p>
+    {% endfor %}
+  </div>
+  {% endfor %} {{ form.valider() }}
+</form>
+
+<p>
+  Pas encore de compte ? <a href="{{ url_for('inscription') }}">Inscris-toi</a>
+</p>
+{% endblock %}

@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 
+from flask_login import UserMixin
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
 
 
-class Utilisateur(db.Model):
+class Utilisateur(UserMixin, db.Model):
     __tablename__ = "utilisateurs"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -13,6 +15,12 @@ class Utilisateur(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False)
     mot_de_passe_hash = db.Column(db.String(255), nullable=False)
     cree_le = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def definir_mot_de_passe(self, mot_de_passe):
+        self.mot_de_passe_hash = generate_password_hash(mot_de_passe)
+
+    def verifier_mot_de_passe(self, mot_de_passe):
+        return check_password_hash(self.mot_de_passe_hash, mot_de_passe)
 
 
 class Carte(db.Model):

@@ -1,0 +1,116 @@
+:root {
+  --fond: #12141a;
+  --surface: #1c1f27;
+  --bordure: #2e323d;
+  --texte: #e8e6e1;
+  --accent: #d4a24c;
+  --erreur: #e5686a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--fond);
+  color: var(--texte);
+}
+
+a {
+  color: var(--accent);
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--bordure);
+}
+
+header nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+header form {
+  margin: 0;
+}
+
+.logo {
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: var(--texte);
+  text-decoration: none;
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.grille img {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.formulaire {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 400px;
+}
+
+.champ {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+input {
+  padding: 0.6rem;
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+  background: var(--fond);
+  color: var(--texte);
+}
+
+button,
+input[type="submit"],
+.bouton {
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--fond);
+  font-weight: bold;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.flash {
+  padding: 0.8rem 1rem;
+  border-left: 4px solid var(--accent);
+  background: var(--surface);
+}
+
+.flash.erreur {
+  border-left-color: var(--erreur);
+}
+
+.erreur-champ {
+  margin: 0;
+  color: var(--erreur);
+  font-size: 0.9rem;
+}

@@ -1,17 +1,17 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ma collection Riftbound</title>
-  </head>
-  <body>
-    <h1>Ma collection Riftbound</h1>
-    <p>Bienvenue {{ pseudo }} !</p>
-    <p>{{ nb_cartes }} cartes dans la base de données.</p>
+{% extends "base.html" %} {% block contenu %}
+<h1>Ta collection Riftbound, en ligne</h1>
 
-    {% for carte in apercu %}
-    <img src="{{ carte.image_url }}" alt="{{ carte.nom }}" width="150" />
-    {% endfor %}
-  </body>
-</html>
+{% if current_user.is_authenticated %}
+<p>Bienvenue {{ current_user.pseudo }} !</p>
+{% else %}
+<p>Crée un compte pour suivre ta collection.</p>
+{% endif %}
+
+<p>{{ nb_cartes }} cartes dans la base de données.</p>
+
+<div class="grille">
+  {% for carte in apercu %}
+  <img src="{{ carte.image_url }}" alt="{{ carte.nom }}" loading="lazy" />
+  {% endfor %}
+</div>
+{% endblock %}

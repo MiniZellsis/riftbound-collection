@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block titre %}Riftbound Collection{% endblock %}</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  </head>
+  <body>
+    <header>
+      <a href="{{ url_for('accueil') }}" class="logo">Riftbound Collection</a>
+      <nav>
+        {% if current_user.is_authenticated %}
+        <a href="{{ url_for('collection') }}">Ma collection</a>
+        <form method="post" action="{{ url_for('deconnexion') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit">Déconnexion</button>
+        </form>
+        {% else %}
+        <a href="{{ url_for('connexion') }}">Connexion</a>
+        <a href="{{ url_for('inscription') }}" class="bouton">Inscription</a>
+        {% endif %}
+      </nav>
+    </header>
+
+    <main>
+      {% for categorie, message in get_flashed_messages(with_categories=true) %}
+      <p class="flash {{ categorie }}">{{ message }}</p>
+      {% endfor %} {% block contenu %}{% endblock %}
+    </main>
+  </body>
+</html>
