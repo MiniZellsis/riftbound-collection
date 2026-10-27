@@ -37,6 +37,48 @@
         {% endif %}
       </dl>
 
+      {% if form %}
+        <h2>Ma collection</h2>
+
+        <form method="post" class="formulaire-collection">
+          {{ form.hidden_tag() }}
+
+          <table>
+            <tr>
+              <th></th>
+              <th>Possédées</th>
+              <th>À échanger</th>
+              <th>Je recherche</th>
+            </tr>
+            <tr>
+              <th>Normale</th>
+              <td>{{ form.normale(**{"aria-label": form.normale.label.text}) }}</td>
+              <td>{{ form.normale_echange(**{"aria-label": form.normale_echange.label.text}) }}</td>
+              <td>{{ form.recherche_normale(**{"aria-label": form.recherche_normale.label.text}) }}</td>
+            </tr>
+            <tr>
+              <th>Foil</th>
+              <td>{{ form.foil(**{"aria-label": form.foil.label.text}) }}</td>
+              <td>{{ form.foil_echange(**{"aria-label": form.foil_echange.label.text}) }}</td>
+              <td>{{ form.recherche_foil(**{"aria-label": form.recherche_foil.label.text}) }}</td>
+            </tr>
+          </table>
+
+          {% for nom_champ, erreurs in form.errors.items() %}
+            {% for erreur in erreurs %}
+              <p class="erreur-champ">{{ form[nom_champ].label.text }} : {{ erreur }}</p>
+            {% endfor %}
+          {% endfor %}
+
+          {{ form.valider() }}
+        </form>
+      {% else %}
+        <p>
+          <a href="{{ url_for('connexion') }}">Connecte-toi</a>
+          pour ajouter cette carte à ta collection.
+        </p>
+      {% endif %}
+
       {% if carte.tcgplayer_id %}
         <p>
           <a href="https://www.tcgplayer.com/product/{{ carte.tcgplayer_id }}"

@@ -8,8 +8,19 @@ from flask_login import (
 )
 from flask_wtf.csrf import CSRFProtect
 
-from formulaires import FormulaireConnexion, FormulaireInscription
+from formulaires import FormulaireCollection, FormulaireConnexion, FormulaireInscription
 from import_cartes import importer_cartes
+from outils_collection import (
+    STATUTS,
+    condition_statut,
+    enregistrer_possession,
+    enregistrer_recherche,
+    progression_par_set,
+    quantites_possedees,
+    statistiques,
+    trouver_possession,
+    trouver_recherche,
+)
 from models import Carte, Utilisateur, db
 
 app = Flask(__name__)
@@ -19,6 +30,7 @@ if not app.config.get("SECRET_KEY"):
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///riftbound.db"
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["WTF_I18N_ENABLED"] = False  # laisse WTForms afficher ses messages en français
 
 db.init_app(app)
 csrf = CSRFProtect(app)
@@ -26,6 +38,7 @@ csrf = CSRFProtect(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "connexion"
 login_manager.login_message = "Connecte-toi pour accéder à cette page."
+
 CARTES_PAR_PAGE = 40
 
 with app.app_context():
@@ -55,11 +68,13 @@ def accueil():
     ).all()
     return render_template("index.html", nb_cartes=nb_cartes, apercu=apercu)
 
+
 @app.route("/cartes")
 def cartes():
     recherche = request.args.get("q", "").strip()
     set_code = request.args.get("set", "")
     rarete = request.args.get("rarete", "")
+    statut = request.args.get("statut", "")
     page = request.args.get("page", 1, type=int)
 
     requete = db.select(Carte)
@@ -71,6 +86,10 @@ def cartes():
         requete = requete.where(Carte.set_code == set_code)
     if rarete:
         requete = requete.where(Carte.rarete == rarete)
+    if statut and current_user.is_authenticated:
+        condition = condition_statut(statut)
+        if condition is not None:
+            requete = requete.where(condition)
     requete = requete.order_by(Carte.set_nom, Carte.numero, Carte.nom)
 
     pagination = db.paginate(
@@ -84,8 +103,12 @@ def cartes():
         db.select(Carte.rarete).distinct().order_by(Carte.rarete)
     ).all()
 
-    filtres = {"q": recherche, "set": set_code, "rarete": rarete}
+    filtres = {"q": recherche, "set": set_code, "rarete": rarete, "statut": statut}
     filtres = {cle: valeur for cle, valeur in filtres.items() if valeur}
+
+    possessions = {}
+    if current_user.is_authenticated:
+        possessions = quantites_possedees([carte.id for carte in pagination.items])
 
     return render_template(
         "cartes.html",
@@ -93,13 +116,46 @@ def cartes():
         sets=sets,
         raretes=raretes,
         filtres=filtres,
+        statuts=STATUTS,
+        possessions=possessions,
     )
 
 
-@app.route("/cartes/<int:carte_id>")
+@app.route("/cartes/<int:carte_id>", methods=["GET", "POST"])
 def detail_carte(carte_id):
     carte = db.get_or_404(Carte, carte_id)
-    return render_template("carte.html", carte=carte)
+
+    if not current_user.is_authenticated:
+        if request.method == "POST":
+            return login_manager.unauthorized()
+        return render_template("carte.html", carte=carte, form=None)
+
+    form = FormulaireCollection()
+
+    if form.validate_on_submit():
+        enregistrer_possession(carte.id, False, form.normale.data, form.normale_echange.data)
+        enregistrer_possession(carte.id, True, form.foil.data, form.foil_echange.data)
+        enregistrer_recherche(carte.id, False, form.recherche_normale.data)
+        enregistrer_recherche(carte.id, True, form.recherche_foil.data)
+        db.session.commit()
+        flash("Collection mise à jour.")
+        return redirect(url_for("detail_carte", carte_id=carte.id))
+
+    if request.method == "GET":
+        normale = trouver_possession(carte.id, False)
+        foil = trouver_possession(carte.id, True)
+        recherche_normale = trouver_recherche(carte.id, False)
+        recherche_foil = trouver_recherche(carte.id, True)
+
+        form.normale.data = normale.quantite if normale else 0
+        form.normale_echange.data = normale.a_echanger if normale else 0
+        form.foil.data = foil.quantite if foil else 0
+        form.foil_echange.data = foil.a_echanger if foil else 0
+        form.recherche_normale.data = recherche_normale.quantite if recherche_normale else 0
+        form.recherche_foil.data = recherche_foil.quantite if recherche_foil else 0
+
+    return render_template("carte.html", carte=carte, form=form)
+
 
 @app.route("/inscription", methods=["GET", "POST"])
 def inscription():
@@ -155,7 +211,9 @@ def deconnexion():
 @app.route("/collection")
 @login_required
 def collection():
-    return render_template("collection.html")
+    return render_template(
+        "collection.html", stats=statistiques(), progression=progression_par_set()
+    )
 
 
 @app.cli.command("import-cartes")

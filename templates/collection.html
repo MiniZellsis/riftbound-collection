@@ -1,5 +1,43 @@
-{% extends "base.html" %} {% block titre %}Ma collection{% endblock %} {% block
-contenu %}
-<h1>Collection de {{ current_user.pseudo }}</h1>
-<p>Ta collection est vide pour l'instant.</p>
+{% extends "base.html" %}
+
+{% block titre %}Ma collection{% endblock %}
+
+{% block contenu %}
+  <h1>Collection de {{ current_user.pseudo }}</h1>
+
+  {% if stats.differentes == 0 %}
+    <p>Ta collection est vide pour l'instant.</p>
+    <p>Va dans <a href="{{ url_for('cartes') }}">Cartes</a>, ouvre une carte et indique combien tu en as.</p>
+  {% else %}
+    <div class="stats">
+      <div><strong>{{ stats.exemplaires }}</strong><span>exemplaires</span></div>
+      <div><strong>{{ stats.differentes }}</strong><span>cartes différentes</span></div>
+      <div><strong>{{ stats.foils }}</strong><span>foils</span></div>
+      <div><strong>{{ stats.a_echanger }}</strong><span>à échanger</span></div>
+      <div><strong>{{ stats.recherchees }}</strong><span>recherchées</span></div>
+    </div>
+
+    <p class="actions">
+      <a href="{{ url_for('cartes', statut='possedees') }}" class="bouton">Voir mes cartes</a>
+      <a href="{{ url_for('cartes', statut='echange') }}">Mes cartes à échanger</a>
+      <a href="{{ url_for('cartes', statut='recherchees') }}">Mes recherches</a>
+    </p>
+  {% endif %}
+
+  <h2>Progression par set</h2>
+
+  {% for s in progression %}
+    <div class="ligne-set">
+      <div class="ligne-set-titre">
+        <span>{{ s.nom }} ({{ s.code }})</span>
+        <span class="secondaire">{{ s.possedees }} / {{ s.total }} · {{ s.pourcentage }} %</span>
+      </div>
+      <progress value="{{ s.possedees }}" max="{{ s.total }}"></progress>
+      <p class="secondaire">
+        <a href="{{ url_for('cartes', set=s.code, statut='possedees') }}">Mes cartes</a>
+        ·
+        <a href="{{ url_for('cartes', set=s.code, statut='manquantes') }}">Cartes manquantes</a>
+      </p>
+    </div>
+  {% endfor %}
 {% endblock %}

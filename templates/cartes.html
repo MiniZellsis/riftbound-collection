@@ -24,6 +24,15 @@
       {% endfor %}
     </select>
 
+    {% if current_user.is_authenticated %}
+      <select name="statut">
+        <option value="">Toutes les cartes</option>
+        {% for valeur, libelle in statuts.items() %}
+          <option value="{{ valeur }}" {% if filtres.statut == valeur %}selected{% endif %}>{{ libelle }}</option>
+        {% endfor %}
+      </select>
+    {% endif %}
+
     <button type="submit">Filtrer</button>
     <a href="{{ url_for('cartes') }}">Réinitialiser</a>
   </form>
@@ -32,10 +41,18 @@
 
   <div class="grille">
     {% for carte in pagination.items %}
-      <a href="{{ url_for('detail_carte', carte_id=carte.id) }}" class="tuile">
+      {% set compte = possessions.get(carte.id) %}
+      <a href="{{ url_for('detail_carte', carte_id=carte.id) }}"
+         class="tuile {% if current_user.is_authenticated and not compte %}manquante{% endif %}">
         <img src="{{ carte.image_url }}" alt="{{ carte.nom }}" loading="lazy">
         <span class="nom">{{ carte.nom }}</span>
         <span class="secondaire">{{ carte.set_code }} · {{ carte.numero }}</span>
+        {% if compte %}
+          <span class="badges">
+            {% if compte.normale %}<span class="badge">×{{ compte.normale }}</span>{% endif %}
+            {% if compte.foil %}<span class="badge foil">Foil ×{{ compte.foil }}</span>{% endif %}
+          </span>
+        {% endif %}
       </a>
     {% else %}
       <p>Aucune carte ne correspond à ta recherche.</p>
