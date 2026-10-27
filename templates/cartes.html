@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block titre %}Cartes{% endblock %}
+
+{% block contenu %}
+  <h1>Toutes les cartes</h1>
+
+  <form method="get" class="filtres">
+    <input type="search" name="q" value="{{ filtres.q }}" placeholder="Nom de la carte…">
+
+    <select name="set">
+      <option value="">Tous les sets</option>
+      {% for code, nom in sets %}
+        <option value="{{ code }}" {% if filtres.set == code %}selected{% endif %}>
+          {{ nom }} ({{ code }})
+        </option>
+      {% endfor %}
+    </select>
+
+    <select name="rarete">
+      <option value="">Toutes les raretés</option>
+      {% for r in raretes %}
+        <option value="{{ r }}" {% if filtres.rarete == r %}selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit">Filtrer</button>
+    <a href="{{ url_for('cartes') }}">Réinitialiser</a>
+  </form>
+
+  <p class="secondaire">{{ pagination.total }} cartes trouvées</p>
+
+  <div class="grille">
+    {% for carte in pagination.items %}
+      <a href="{{ url_for('detail_carte', carte_id=carte.id) }}" class="tuile">
+        <img src="{{ carte.image_url }}" alt="{{ carte.nom }}" loading="lazy">
+        <span class="nom">{{ carte.nom }}</span>
+        <span class="secondaire">{{ carte.set_code }} · {{ carte.numero }}</span>
+      </a>
+    {% else %}
+      <p>Aucune carte ne correspond à ta recherche.</p>
+    {% endfor %}
+  </div>
+
+  {% if pagination.pages > 1 %}
+    <nav class="pagination">
+      {% if pagination.has_prev %}
+        <a href="{{ url_for('cartes', page=pagination.prev_num, **filtres) }}">« Précédent</a>
+      {% endif %}
+
+      {% for numero in pagination.iter_pages() %}
+        {% if numero is none %}
+          <span>…</span>
+        {% elif numero == pagination.page %}
+          <span class="actuelle">{{ numero }}</span>
+        {% else %}
+          <a href="{{ url_for('cartes', page=numero, **filtres) }}">{{ numero }}</a>
+        {% endif %}
+      {% endfor %}
+
+      {% if pagination.has_next %}
+        <a href="{{ url_for('cartes', page=pagination.next_num, **filtres) }}">Suivant »</a>
+      {% endif %}
+    </nav>
+  {% endif %}
+{% endblock %}

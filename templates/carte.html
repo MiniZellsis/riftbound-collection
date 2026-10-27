@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block titre %}{{ carte.nom }}{% endblock %}
+
+{% block contenu %}
+  <p><a href="{{ url_for('cartes') }}">« Retour aux cartes</a></p>
+
+  <div class="detail">
+    <img src="{{ carte.image_url }}" alt="{{ carte.nom }}">
+
+    <div>
+      <h1>{{ carte.nom }}</h1>
+
+      <dl>
+        <dt>Set</dt>
+        <dd>{{ carte.set_nom }} ({{ carte.set_code }})</dd>
+
+        <dt>Numéro</dt>
+        <dd>{{ carte.numero }}</dd>
+
+        <dt>Rareté</dt>
+        <dd>{{ carte.rarete }}</dd>
+
+        <dt>Type</dt>
+        <dd>{{ carte.type_carte }}</dd>
+
+        <dt>Domaines</dt>
+        <dd>{{ carte.domaines or "—" }}</dd>
+
+        {% if carte.signature or carte.art_alternatif or carte.surnumerotee %}
+          <dt>Version</dt>
+          <dd>
+            {% if carte.signature %}Signature{% endif %}
+            {% if carte.art_alternatif %}Art alternatif{% endif %}
+            {% if carte.surnumerotee %}Surnumérotée{% endif %}
+          </dd>
+        {% endif %}
+      </dl>
+
+      {% if carte.tcgplayer_id %}
+        <p>
+          <a href="https://www.tcgplayer.com/product/{{ carte.tcgplayer_id }}"
+             target="_blank" rel="noopener noreferrer">Voir le prix sur TCGplayer</a>
+        </p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

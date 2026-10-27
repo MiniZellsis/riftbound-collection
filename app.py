@@ -1,4 +1,4 @@
-from flask import Flask, flash, redirect, render_template, url_for
+from flask import Flask, flash, redirect, render_template, request, url_for
 from flask_login import (
     LoginManager,
     current_user,
@@ -13,7 +13,7 @@ from import_cartes import importer_cartes
 from models import Carte, Utilisateur, db
 
 app = Flask(__name__)
-app.config.from_prefixed_env()  # lit FLASK_SECRET_KEY dans le fichier .env
+app.config.from_prefixed_env()
 if not app.config.get("SECRET_KEY"):
     raise RuntimeError("FLASK_SECRET_KEY manquant : ajoute-le dans le fichier .env")
 
@@ -26,6 +26,7 @@ csrf = CSRFProtect(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "connexion"
 login_manager.login_message = "Connecte-toi pour accéder à cette page."
+CARTES_PAR_PAGE = 40
 
 with app.app_context():
     db.create_all()
@@ -54,6 +55,51 @@ def accueil():
     ).all()
     return render_template("index.html", nb_cartes=nb_cartes, apercu=apercu)
 
+@app.route("/cartes")
+def cartes():
+    recherche = request.args.get("q", "").strip()
+    set_code = request.args.get("set", "")
+    rarete = request.args.get("rarete", "")
+    page = request.args.get("page", 1, type=int)
+
+    requete = db.select(Carte)
+    if recherche:
+        requete = requete.where(
+            db.func.lower(Carte.nom).contains(recherche.lower(), autoescape=True)
+        )
+    if set_code:
+        requete = requete.where(Carte.set_code == set_code)
+    if rarete:
+        requete = requete.where(Carte.rarete == rarete)
+    requete = requete.order_by(Carte.set_nom, Carte.numero, Carte.nom)
+
+    pagination = db.paginate(
+        requete, page=page, per_page=CARTES_PAR_PAGE, error_out=False
+    )
+
+    sets = db.session.execute(
+        db.select(Carte.set_code, Carte.set_nom).distinct().order_by(Carte.set_nom)
+    ).all()
+    raretes = db.session.scalars(
+        db.select(Carte.rarete).distinct().order_by(Carte.rarete)
+    ).all()
+
+    filtres = {"q": recherche, "set": set_code, "rarete": rarete}
+    filtres = {cle: valeur for cle, valeur in filtres.items() if valeur}
+
+    return render_template(
+        "cartes.html",
+        pagination=pagination,
+        sets=sets,
+        raretes=raretes,
+        filtres=filtres,
+    )
+
+
+@app.route("/cartes/<int:carte_id>")
+def detail_carte(carte_id):
+    carte = db.get_or_404(Carte, carte_id)
+    return render_template("carte.html", carte=carte)
 
 @app.route("/inscription", methods=["GET", "POST"])
 def inscription():
@@ -93,7 +139,6 @@ def connexion():
             login_user(utilisateur)
             flash(f"Content de te revoir, {utilisateur.pseudo} !")
             return redirect(url_for("collection"))
-        # Même message dans les deux cas : on ne dit pas si le pseudo existe
         flash("Pseudo ou mot de passe incorrect.", "erreur")
 
     return render_template("connexion.html", form=form)

@@ -3,6 +3,7 @@
   --surface: #1c1f27;
   --bordure: #2e323d;
   --texte: #e8e6e1;
+  --texte-secondaire: #9a9890;
   --accent: #d4a24c;
   --erreur: #e5686a;
 }
@@ -24,8 +25,10 @@ a {
 
 header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   padding: 1rem 2rem;
   background: var(--surface);
   border-bottom: 1px solid var(--bordure);
@@ -78,7 +81,8 @@ main {
   gap: 0.3rem;
 }
 
-input {
+input,
+select {
   padding: 0.6rem;
   border: 1px solid var(--bordure);
   border-radius: 6px;
@@ -113,4 +117,92 @@ input[type="submit"],
   margin: 0;
   color: var(--erreur);
   font-size: 0.9rem;
+}
+
+.secondaire {
+  color: var(--texte-secondaire);
+  font-size: 0.85rem;
+}
+
+.filtres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.filtres input[type="search"] {
+  flex: 1;
+  min-width: 200px;
+}
+
+.tuile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--texte);
+  text-decoration: none;
+}
+
+.tuile:hover img {
+  outline: 2px solid var(--accent);
+}
+
+.tuile .nom {
+  font-size: 0.9rem;
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 2rem;
+}
+
+.pagination a,
+.pagination span {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.pagination .actuelle {
+  background: var(--accent);
+  color: var(--fond);
+  font-weight: bold;
+}
+
+.detail {
+  display: grid;
+  grid-template-columns: minmax(0, 350px) 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+.detail img {
+  width: 100%;
+  border-radius: 12px;
+}
+
+.detail dt {
+  color: var(--texte-secondaire);
+  font-size: 0.85rem;
+}
+
+.detail dd {
+  margin: 0 0 0.8rem;
+}
+
+@media (max-width: 700px) {
+  header,
+  main {
+    padding: 1rem;
+  }
+
+  .detail {
+    grid-template-columns: 1fr;
+  }
 }
