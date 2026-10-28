@@ -1,4 +1,8 @@
+from urllib.parse import urlsplit
+
 from flask import Flask, flash, redirect, render_template, request, url_for
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import (
     LoginManager,
     current_user,
@@ -6,7 +10,8 @@ from flask_login import (
     login_user,
     logout_user,
 )
-from flask_wtf.csrf import CSRFProtect
+from flask_wtf.csrf import CSRFError, CSRFProtect
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from formulaires import FormulaireCollection, FormulaireConnexion, FormulaireInscription
 from import_cartes import importer_cartes
@@ -24,7 +29,7 @@ from outils_collection import (
 from models import Carte, Utilisateur, db
 
 app = Flask(__name__)
-app.config.from_prefixed_env()
+app.config.from_prefixed_env() 
 if not app.config.get("SECRET_KEY"):
     raise RuntimeError("FLASK_SECRET_KEY manquant : ajoute-le dans le fichier .env")
 
@@ -34,12 +39,15 @@ app.config["WTF_I18N_ENABLED"] = False  # laisse WTForms afficher ses messages e
 
 db.init_app(app)
 csrf = CSRFProtect(app)
+limiter = Limiter(get_remote_address, app=app, storage_uri="memory://")
 
 login_manager = LoginManager(app)
 login_manager.login_view = "connexion"
 login_manager.login_message = "Connecte-toi pour accéder à cette page."
 
 CARTES_PAR_PAGE = 40
+
+HASH_FACTICE = generate_password_hash("mot-de-passe-factice")
 
 with app.app_context():
     db.create_all()
@@ -58,6 +66,67 @@ def trouver_par_pseudo(pseudo):
 
 def trouver_par_email(email):
     return db.session.scalar(db.select(Utilisateur).filter_by(email=email))
+
+
+def est_lien_interne(url):
+    """Vrai seulement pour un lien vers notre propre site, comme /cartes/12."""
+    if not url or not url.startswith("/") or url.startswith("//"):
+        return False
+    if "\\" in url or any(caractere.isspace() for caractere in url):
+        return False
+    return urlsplit(url).netloc == ""
+
+
+@app.after_request
+def ajouter_entetes_securite(reponse):
+    reponse.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "img-src 'self' https://cmsassets.rgpub.io; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'; "
+        "frame-ancestors 'none'"
+    )
+    reponse.headers["X-Content-Type-Options"] = "nosniff"
+    reponse.headers["X-Frame-Options"] = "DENY"
+    reponse.headers["Referrer-Policy"] = "same-origin"
+    reponse.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return reponse
+
+
+@app.errorhandler(404)
+def page_introuvable(erreur):
+    return render_template(
+        "erreur.html", titre="Page introuvable", message="Cette page n'existe pas."
+    ), 404
+
+
+@app.errorhandler(429)
+def trop_de_tentatives(erreur):
+    return render_template(
+        "erreur.html",
+        titre="Trop de tentatives",
+        message="Tu as fait trop d'essais. Attends un peu avant de réessayer.",
+    ), 429
+
+
+@app.errorhandler(CSRFError)
+def formulaire_expire(erreur):
+    return render_template(
+        "erreur.html",
+        titre="Formulaire expiré",
+        message="Le formulaire a expiré. Recharge la page et réessaie.",
+    ), 400
+
+
+@app.errorhandler(500)
+def erreur_serveur(erreur):
+    db.session.rollback()
+    return render_template(
+        "erreur.html",
+        titre="Erreur du serveur",
+        message="Quelque chose s'est mal passé. Réessaie plus tard.",
+    ), 500
 
 
 @app.route("/")
@@ -158,6 +227,7 @@ def detail_carte(carte_id):
 
 
 @app.route("/inscription", methods=["GET", "POST"])
+@limiter.limit("5 per hour", methods=["POST"])
 def inscription():
     if current_user.is_authenticated:
         return redirect(url_for("accueil"))
@@ -184,6 +254,7 @@ def inscription():
 
 
 @app.route("/connexion", methods=["GET", "POST"])
+@limiter.limit("5 per minute; 20 per hour", methods=["POST"])
 def connexion():
     if current_user.is_authenticated:
         return redirect(url_for("accueil"))
@@ -191,10 +262,22 @@ def connexion():
     form = FormulaireConnexion()
     if form.validate_on_submit():
         utilisateur = trouver_par_pseudo(form.pseudo.data.strip())
-        if utilisateur and utilisateur.verifier_mot_de_passe(form.mot_de_passe.data):
+
+        if utilisateur is not None:
+            mot_de_passe_ok = utilisateur.verifier_mot_de_passe(form.mot_de_passe.data)
+        else:
+            check_password_hash(HASH_FACTICE, form.mot_de_passe.data)
+            mot_de_passe_ok = False
+
+        if mot_de_passe_ok:
             login_user(utilisateur)
             flash(f"Content de te revoir, {utilisateur.pseudo} !")
-            return redirect(url_for("collection"))
+
+            page_suivante = request.args.get("next")
+            if not est_lien_interne(page_suivante):
+                page_suivante = url_for("collection")
+            return redirect(page_suivante)
+
         flash("Pseudo ou mot de passe incorrect.", "erreur")
 
     return render_template("connexion.html", form=form)
