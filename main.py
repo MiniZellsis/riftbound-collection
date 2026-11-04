@@ -1,7 +1,8 @@
 import sys
+import traceback
 
 from PySide6.QtNetwork import QNetworkProxyFactory
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from app import catalogue
 from app.fenetre_connexion import FenetreConnexion
@@ -14,8 +15,15 @@ QLineEdit, QPushButton { padding: 6px; }
 """
 
 
-class Application:
+def afficher_erreur(type_erreur, erreur, trace):
+    details = "".join(traceback.format_exception(type_erreur, erreur, trace))
+    print(details, file=sys.stderr)
+    boite = QMessageBox(QMessageBox.Icon.Critical, "Erreur inattendue", f"{type_erreur.__name__} : {erreur}")
+    boite.setDetailedText(details)
+    boite.exec()
 
+
+class Application:
     def __init__(self):
         self.fenetre_principale = None
         self.fenetre_connexion = FenetreConnexion()
@@ -38,6 +46,7 @@ if __name__ == "__main__":
     catalogue.creer_base()
     qt_app = QApplication(sys.argv)
     qt_app.setStyleSheet(STYLE)
+    sys.excepthook = afficher_erreur
     QNetworkProxyFactory.setUseSystemConfiguration(True)
     application = Application()
     sys.exit(qt_app.exec())

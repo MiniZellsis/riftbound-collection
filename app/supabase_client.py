@@ -17,10 +17,23 @@ _client = create_client(
 )
 
 MESSAGE_RESEAU = "Impossible de joindre le serveur. Vérifie ta connexion Internet."
+LIGNES_PAR_PAGE = 1000  # Supabase renvoie 1000 lignes maximum par requête
 
 
 class ErreurSupabase(Exception):
     """Une erreur avec un message lisible, prêt à afficher dans une fenêtre."""
+
+
+def _executer(requete):
+    """Envoie une requête à la base et traduit les erreurs en français."""
+    try:
+        return requete.execute()
+    except httpx.HTTPError:
+        raise ErreurSupabase(MESSAGE_RESEAU)
+    except PostgrestAPIError as erreur:
+        if erreur.code == "PGRST301":  # jeton de connexion expiré ou invalide
+            raise ErreurSupabase("Ta session a expiré. Déconnecte-toi puis reconnecte-toi.")
+        raise ErreurSupabase(f"Erreur de la base : {erreur.message}")
 
 
 def se_connecter(email, mot_de_passe):
@@ -53,30 +66,45 @@ def se_deconnecter():
 
 def lire_pseudo(user_id):
     """Renvoie le pseudo de l'utilisateur."""
-    try:
-        reponse = (
-            _client.table("profils")
-            .select("pseudo")
-            .eq("id", user_id)
-            .single()
-            .execute()
-        )
-    except httpx.HTTPError:
-        raise ErreurSupabase(MESSAGE_RESEAU)
-    except PostgrestAPIError as erreur:
-        raise ErreurSupabase(f"Erreur de la base : {erreur.message}")
+    reponse = _executer(
+        _client.table("profils").select("pseudo").eq("id", user_id).single()
+    )
     return reponse.data["pseudo"]
 
 
-def resume_collection():
-    """Renvoie (nombre de cartes différentes, nombre total de cartes)."""
-    try:
-        # Le RLS ne renvoie que les lignes de l'utilisateur connecté
-        reponse = _client.table("collection").select("quantite").execute()
-    except httpx.HTTPError:
-        raise ErreurSupabase(MESSAGE_RESEAU)
-    except PostgrestAPIError as erreur:
-        raise ErreurSupabase(f"Erreur de la base : {erreur.message}")
-    lignes = reponse.data
-    total = sum(ligne["quantite"] for ligne in lignes)
-    return len(lignes), total
+def lire_collection():
+    """Toutes les lignes de collection de l'utilisateur connecté."""
+    # Pas besoin de filtrer sur user_id : le RLS ne renvoie que nos lignes.
+    # Supabase s'arrête à 1000 lignes par réponse, donc on lit page par page.
+    lignes = []
+    debut = 0
+    while True:
+        reponse = _executer(
+            _client.table("collection")
+            .select("carte_id, foil, quantite, a_echanger, recherche")
+            .order("id")  # un ordre fixe, sinon des lignes pourraient sauter d'une page à l'autre
+            .range(debut, debut + LIGNES_PAR_PAGE - 1)
+        )
+        lignes += reponse.data
+        if len(reponse.data) < LIGNES_PAR_PAGE:
+            return lignes
+        debut += LIGNES_PAR_PAGE
+
+
+def enregistrer_versions(user_id, carte_id, versions):
+    """
+    Ajoute ou met à jour des versions d'une carte (normale et/ou foil).
+    Chaque version est un dictionnaire : foil, quantite, a_echanger, recherche.
+    """
+    lignes = [{"user_id": user_id, "carte_id": carte_id, **version} for version in versions]
+    # upsert = insert, ou update si la ligne (user_id, carte_id, foil) existe déjà
+    _executer(
+        _client.table("collection").upsert(lignes, on_conflict="user_id,carte_id,foil")
+    )
+
+
+def supprimer_version(carte_id, foil):
+    """Supprime la ligne d'une version (le RLS limite la suppression à nos lignes)."""
+    _executer(
+        _client.table("collection").delete().eq("carte_id", carte_id).eq("foil", foil)
+    )

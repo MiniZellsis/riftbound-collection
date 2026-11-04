@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
+from PySide6.QtCore import QRect, QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPen, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import QListView, QListWidget, QListWidgetItem
 
@@ -11,6 +11,10 @@ LARGEUR_MINIATURE = 240
 TAILLE_ICONE = QSize(160, 223)
 TAILLE_CASE = QSize(180, 275)
 ROLE_CARTE_ID = Qt.ItemDataRole.UserRole
+
+OPACITE_MANQUANTE = 0.35
+COULEUR_PASTILLE = QColor("#2e7d32")
+COULEUR_PASTILLE_FOIL = QColor("#b8860b")
 
 
 def creer_image_attente():
@@ -28,8 +32,9 @@ def creer_image_attente():
 class GrilleCartes(QListWidget):
     carte_choisie = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, collection, parent=None):
         super().__init__(parent)
+        self.collection = collection
         self.setViewMode(QListView.ViewMode.IconMode)
         self.setIconSize(TAILLE_ICONE)
         self.setGridSize(TAILLE_CASE)
@@ -98,7 +103,7 @@ class GrilleCartes(QListWidget):
         fichier = DOSSIER_IMAGES / Path(QUrl(url).fileName()).with_suffix(".webp")
 
         if fichier.exists():
-            self.elements[carte_id].setIcon(QIcon(str(fichier)))
+            self.elements[carte_id].setIcon(self.creer_icone(QImage(str(fichier)), carte_id))
             return
 
         reponse = self.reseau.get(QNetworkRequest(QUrl(url)))
@@ -107,7 +112,7 @@ class GrilleCartes(QListWidget):
     def image_recue(self, reponse, carte_id, fichier):
         reponse.deleteLater()
         if reponse.error() != QNetworkReply.NetworkError.NoError:
-            self.chargees.discard(carte_id) 
+            self.chargees.discard(carte_id)
             return
 
         image = QImage()
@@ -119,4 +124,39 @@ class GrilleCartes(QListWidget):
         miniature.save(str(fichier), quality=85)
 
         if carte_id in self.chargees:
-            self.elements[carte_id].setIcon(QIcon(QPixmap.fromImage(miniature)))
+            self.elements[carte_id].setIcon(self.creer_icone(miniature, carte_id))
+
+    def creer_icone(self, image, carte_id):
+        pixmap = QPixmap.fromImage(image)
+        quantite = self.collection.quantite(carte_id)
+
+        if quantite == 0:
+            pale = QPixmap(pixmap.size())
+            pale.fill(Qt.GlobalColor.transparent)
+            peintre = QPainter(pale)
+            peintre.setOpacity(OPACITE_MANQUANTE)
+            peintre.drawPixmap(0, 0, pixmap)
+            peintre.end()
+            return QIcon(pale)
+
+        peintre = QPainter(pixmap)
+        peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self.collection.a_une_foil(carte_id):
+            peintre.setBrush(COULEUR_PASTILLE_FOIL)
+        else:
+            peintre.setBrush(COULEUR_PASTILLE)
+        peintre.setPen(QPen(Qt.GlobalColor.white, 3))
+        cercle = QRect(pixmap.width() - 66, pixmap.height() - 66, 58, 58)
+        peintre.drawEllipse(cercle)
+
+        police = peintre.font()
+        police.setPixelSize(28)
+        police.setBold(True)
+        peintre.setFont(police)
+        peintre.drawText(cercle, Qt.AlignmentFlag.AlignCenter, str(quantite))
+        peintre.end()
+        return QIcon(pixmap)
+
+    def rafraichir_carte(self, carte_id):
+        if carte_id in self.chargees:
+            self.charger_image(carte_id)
