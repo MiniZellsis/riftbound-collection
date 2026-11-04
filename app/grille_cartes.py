@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import QListView, QListWidget, QListWidgetItem
@@ -10,6 +10,7 @@ from app.catalogue import DOSSIER_IMAGES
 LARGEUR_MINIATURE = 240
 TAILLE_ICONE = QSize(160, 223)
 TAILLE_CASE = QSize(180, 275)
+ROLE_CARTE_ID = Qt.ItemDataRole.UserRole
 
 
 def creer_image_attente():
@@ -25,6 +26,8 @@ def creer_image_attente():
 
 
 class GrilleCartes(QListWidget):
+    carte_choisie = Signal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setViewMode(QListView.ViewMode.IconMode)
@@ -47,6 +50,11 @@ class GrilleCartes(QListWidget):
         self.minuteur.timeout.connect(self.mettre_a_jour_images)
         self.verticalScrollBar().valueChanged.connect(self.planifier_images)
 
+        self.itemActivated.connect(self.element_active)
+
+    def element_active(self, element):
+        self.carte_choisie.emit(element.data(ROLE_CARTE_ID))
+
     def planifier_images(self):
         self.minuteur.start()
 
@@ -57,6 +65,7 @@ class GrilleCartes(QListWidget):
         self.chargees.clear()
         for carte in cartes:
             element = QListWidgetItem(self.image_attente, carte["nom"])
+            element.setData(ROLE_CARTE_ID, carte["carte_id"])
             element.setToolTip(
                 f"{carte['nom']}\n{carte['set_nom']} - n°{carte['numero']}\n{carte['rarete']}"
             )
@@ -98,7 +107,7 @@ class GrilleCartes(QListWidget):
     def image_recue(self, reponse, carte_id, fichier):
         reponse.deleteLater()
         if reponse.error() != QNetworkReply.NetworkError.NoError:
-            self.chargees.discard(carte_id)
+            self.chargees.discard(carte_id) 
             return
 
         image = QImage()

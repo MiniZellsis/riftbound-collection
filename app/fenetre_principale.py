@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
 )
 
 from app import catalogue, supabase_client
+from app.barre_filtres import BarreFiltres
+from app.fenetre_carte import FenetreCarte
 from app.grille_cartes import GrilleCartes
 from app.import_catalogue import ImportCatalogue
 
@@ -34,12 +36,12 @@ class FenetrePrincipale(QMainWindow):
             texte_accueil = "Bienvenue !"
             texte_collection = str(erreur)
 
-        # 2. Les widgets
         accueil = QLabel(texte_accueil)
         accueil.setObjectName("titre")
         collection = QLabel(texte_collection)
         self.bouton_maj = QPushButton("Mettre à jour le catalogue")
         bouton_deconnexion = QPushButton("Se déconnecter")
+        self.barre_filtres = BarreFiltres()
         self.grille = GrilleCartes()
 
         ligne_haut = QHBoxLayout()
@@ -52,6 +54,7 @@ class FenetrePrincipale(QMainWindow):
         layout = QVBoxLayout(zone_centrale)
         layout.addLayout(ligne_haut)
         layout.addWidget(collection)
+        layout.addWidget(self.barre_filtres)
         layout.addWidget(self.grille)
         self.setCentralWidget(zone_centrale)
 
@@ -67,20 +70,32 @@ class FenetrePrincipale(QMainWindow):
 
         self.bouton_maj.clicked.connect(self.mettre_a_jour_catalogue)
         bouton_deconnexion.clicked.connect(self.se_deconnecter)
+        self.barre_filtres.filtres_changes.connect(self.afficher_cartes)
+        self.grille.carte_choisie.connect(self.ouvrir_carte)
 
         if catalogue.nombre_cartes() == 0:
             self.mettre_a_jour_catalogue()
         else:
-            self.afficher_catalogue()
+            self.charger_catalogue()
 
-    def afficher_catalogue(self):
-        cartes = catalogue.lister_cartes()
+    def charger_catalogue(self):
+        self.barre_filtres.remplir(catalogue.valeurs_filtres())
+        self.afficher_cartes()
+
+    def afficher_cartes(self):
+        cartes = catalogue.lister_cartes(**self.barre_filtres.filtres())
         self.grille.afficher(cartes)
-        self.statusBar().showMessage(f"{len(cartes)} cartes dans le catalogue")
+        self.statusBar().showMessage(
+            f"{len(cartes)} carte(s) affichée(s) sur {catalogue.nombre_cartes()}"
+        )
+
+    def ouvrir_carte(self, carte_id):
+        fenetre = FenetreCarte(carte_id, self)
+        fenetre.exec()
 
     def mettre_a_jour_catalogue(self):
         self.bouton_maj.setEnabled(False)
-        self.barre_progression.setRange(0, 0) 
+        self.barre_progression.setRange(0, 0)
         self.barre_progression.show()
         self.statusBar().showMessage("Connexion à Riftcodex... (le serveur peut être lent)")
         self.import_catalogue.demarrer()
@@ -92,11 +107,11 @@ class FenetrePrincipale(QMainWindow):
 
     def import_termine(self):
         self.fin_import()
-        self.afficher_catalogue()
+        self.charger_catalogue()
 
     def import_echoue(self, message):
         self.fin_import()
-        self.afficher_catalogue() 
+        self.charger_catalogue()
         QMessageBox.warning(self, "Catalogue", message)
 
     def fin_import(self):
