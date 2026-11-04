@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
@@ -7,26 +8,28 @@ DOSSIER_DONNEES = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Riftbound
 CHEMIN_BASE = DOSSIER_DONNEES / "catalogue.db"
 DOSSIER_IMAGES = DOSSIER_DONNEES / "images"
 
+ORDRE_RARETES = ["Common", "Uncommon", "Rare", "Epic", "Showcase", "Promo"]
+CODE_SIMPLE = re.compile(r"[a-z]+-(\d+)-(\d+)")
+
 
 @contextmanager
 def ouvrir_base():
     base = sqlite3.connect(CHEMIN_BASE)
-    base.row_factory = sqlite3.Row  
+    base.row_factory = sqlite3.Row
     try:
-        with base:  
+        with base:
             yield base
     finally:
         base.close()
 
 
 def creer_base():
-    """Crée les dossiers et la table si besoin (au premier lancement)."""
     DOSSIER_IMAGES.mkdir(parents=True, exist_ok=True)
     with ouvrir_base() as base:
         base.execute("""
             create table if not exists cartes (
-                carte_id       text primary key,  -- identifiant Riftcodex
-                code           text not null,     -- code imprimé, ex. ogn-001-298
+                carte_id       text primary key,
+                code           text not null,
                 nom            text not null,
                 set_code       text not null,
                 set_nom        text,
@@ -128,9 +131,6 @@ def lister_cartes(texte="", set_code="", rarete="", domaine="", type_carte=""):
         """, valeurs).fetchall()
 
 
-ORDRE_RARETES = ["Common", "Uncommon", "Rare", "Epic", "Showcase", "Promo"]
-
-
 def valeurs_filtres():
     with ouvrir_base() as base:
         sets = base.execute("""
@@ -159,3 +159,22 @@ def lire_carte(carte_id):
         return base.execute(
             "select * from cartes where carte_id = :carte_id", {"carte_id": carte_id}
         ).fetchone()
+
+
+def est_de_base(code):
+    morceaux = CODE_SIMPLE.fullmatch(code)
+    return bool(morceaux) and int(morceaux.group(1)) <= int(morceaux.group(2))
+
+
+def cartes_par_set():
+    with ouvrir_base() as base:
+        lignes = base.execute("""
+            select set_nom, carte_id, code from cartes
+            order by set_nom like '%Promotional%', set_code, numero
+        """).fetchall()
+    sets = {}
+    for ligne in lignes:
+        sets.setdefault(ligne["set_nom"], []).append(
+            (ligne["carte_id"], est_de_base(ligne["code"]))
+        )
+    return sets

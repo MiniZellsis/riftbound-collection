@@ -4,7 +4,7 @@ import traceback
 from PySide6.QtNetwork import QNetworkProxyFactory
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from app import catalogue
+from app import catalogue, supabase_client
 from app.fenetre_connexion import FenetreConnexion
 from app.fenetre_principale import FenetrePrincipale
 
@@ -28,7 +28,17 @@ class Application:
         self.fenetre_principale = None
         self.fenetre_connexion = FenetreConnexion()
         self.fenetre_connexion.connexion_reussie.connect(self.ouvrir_principale)
-        self.fenetre_connexion.show()
+
+        try:
+            user_id = supabase_client.reprendre_session()
+        except supabase_client.ErreurSupabase as erreur:
+            user_id = None
+            self.fenetre_connexion.message.setText(str(erreur))
+
+        if user_id:
+            self.ouvrir_principale(user_id)
+        else:
+            self.fenetre_connexion.show()
 
     def ouvrir_principale(self, user_id):
         self.fenetre_principale = FenetrePrincipale(user_id)
