@@ -3,6 +3,7 @@ import os
 import httpx
 import keyring
 from dotenv import load_dotenv
+from postgrest import ReturnMethod
 from supabase import AuthApiError, AuthError, PostgrestAPIError, create_client
 
 load_dotenv()
@@ -120,20 +121,47 @@ def lire_pseudo(user_id):
     return reponse.data["pseudo"]
 
 
-def lire_collection():
+def _lire_par_pages(fabriquer_requete):
     lignes = []
     debut = 0
     while True:
         reponse = _executer(
-            _client.table("collection")
-            .select("carte_id, foil, quantite, a_echanger, recherche")
-            .order("id")
-            .range(debut, debut + LIGNES_PAR_PAGE - 1)
+            fabriquer_requete().range(debut, debut + LIGNES_PAR_PAGE - 1)
         )
         lignes += reponse.data
         if len(reponse.data) < LIGNES_PAR_PAGE:
             return lignes
         debut += LIGNES_PAR_PAGE
+
+
+def lire_collection():
+    return _lire_par_pages(
+        lambda: _client.table("collection")
+        .select("carte_id, foil, quantite, a_echanger, recherche")
+        .order("id")
+    )
+
+
+def lire_echanges():
+    return _lire_par_pages(
+        lambda: _client.rpc("echanges_possibles")
+        .order("pseudo")
+        .order("carte_id")
+        .order("foil")
+        .order("sens")
+    )
+
+
+def lire_contact():
+    return _executer(_client.rpc("mon_contact")).data or ""
+
+
+def modifier_contact(user_id, contact):
+    _executer(
+        _client.table("profils")
+        .update({"contact": contact or None}, returning=ReturnMethod.minimal)
+        .eq("id", user_id)
+    )
 
 
 def enregistrer_versions(user_id, carte_id, versions):

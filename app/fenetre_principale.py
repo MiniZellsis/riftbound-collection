@@ -14,6 +14,7 @@ from app import catalogue, supabase_client
 from app.barre_filtres import BarreFiltres
 from app.collection import Collection
 from app.fenetre_carte import FenetreCarte
+from app.fenetre_echanges import FenetreEchanges
 from app.fenetre_progression import FenetreProgression
 from app.grille_cartes import GrilleCartes
 from app.import_catalogue import ImportCatalogue
@@ -28,11 +29,12 @@ class FenetrePrincipale(QMainWindow):
         self.resize(1100, 750)
 
         self.collection = Collection(user_id)
+        self.pseudo = None
         self.erreur_chargement = ""
         try:
-            pseudo = supabase_client.lire_pseudo(user_id)
+            self.pseudo = supabase_client.lire_pseudo(user_id)
             self.collection.charger()
-            texte_accueil = f"Bienvenue {pseudo} !"
+            texte_accueil = f"Bienvenue {self.pseudo} !"
         except supabase_client.ErreurSupabase as erreur:
             texte_accueil = "Bienvenue !"
             self.erreur_chargement = str(erreur)
@@ -42,6 +44,8 @@ class FenetrePrincipale(QMainWindow):
         self.resume = QLabel()
         self.bouton_progression = QPushButton("Progression")
         self.bouton_progression.setEnabled(self.collection.chargee)
+        self.bouton_echanges = QPushButton("Échanges")
+        self.bouton_echanges.setEnabled(self.collection.chargee)
         self.bouton_maj = QPushButton("Mettre à jour le catalogue")
         bouton_deconnexion = QPushButton("Se déconnecter")
         self.barre_filtres = BarreFiltres()
@@ -51,6 +55,7 @@ class FenetrePrincipale(QMainWindow):
         ligne_haut.addWidget(accueil)
         ligne_haut.addStretch()
         ligne_haut.addWidget(self.bouton_progression)
+        ligne_haut.addWidget(self.bouton_echanges)
         ligne_haut.addWidget(self.bouton_maj)
         ligne_haut.addWidget(bouton_deconnexion)
 
@@ -73,6 +78,7 @@ class FenetrePrincipale(QMainWindow):
         self.import_catalogue.echec.connect(self.import_echoue)
 
         self.bouton_progression.clicked.connect(self.ouvrir_progression)
+        self.bouton_echanges.clicked.connect(self.ouvrir_echanges)
         self.bouton_maj.clicked.connect(self.mettre_a_jour_catalogue)
         bouton_deconnexion.clicked.connect(self.se_deconnecter)
         self.barre_filtres.filtres_changes.connect(self.afficher_cartes)
@@ -122,6 +128,9 @@ class FenetrePrincipale(QMainWindow):
 
     def ouvrir_progression(self):
         FenetreProgression(self.collection, self).exec()
+
+    def ouvrir_echanges(self):
+        FenetreEchanges(self.collection, self.pseudo, self).exec()
 
     def mettre_a_jour_catalogue(self):
         self.bouton_maj.setEnabled(False)
