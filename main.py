@@ -4,15 +4,9 @@ import traceback
 from PySide6.QtNetwork import QNetworkProxyFactory
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from app import catalogue, supabase_client
+from app import catalogue, supabase_client, theme
 from app.fenetre_connexion import FenetreConnexion
 from app.fenetre_principale import FenetrePrincipale
-
-STYLE = """
-QLabel#titre { font-size: 20px; font-weight: bold; }
-QLabel#erreur { color: #c0392b; }
-QLineEdit, QPushButton { padding: 6px; }
-"""
 
 
 def afficher_erreur(type_erreur, erreur, trace):
@@ -55,7 +49,7 @@ class Application:
 if __name__ == "__main__":
     catalogue.creer_base()
     qt_app = QApplication(sys.argv)
-    qt_app.setStyleSheet(STYLE)
+    theme.appliquer_theme(qt_app)
     sys.excepthook = afficher_erreur
     QNetworkProxyFactory.setUseSystemConfiguration(True)
     application = Application()

@@ -1,4 +1,3 @@
-"""Fenêtre de détail d'une carte : grande image, informations et ma collection."""
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QUrl
@@ -21,7 +20,7 @@ from PySide6.QtWidgets import (
 from app import catalogue, supabase_client
 from app.catalogue import DOSSIER_IMAGES
 
-TAILLE_IMAGE = QSize(450, 630)  # cadre de l'image (les champs de bataille sont en largeur)
+TAILLE_IMAGE = QSize(450, 630)
 
 
 class FenetreCarte(QDialog):
@@ -32,18 +31,16 @@ class FenetreCarte(QDialog):
         self.carte = catalogue.lire_carte(carte_id)
         self.setWindowTitle(self.carte["nom"])
         self.reseau = QNetworkAccessManager(self)
-        self.reponse = None  # le téléchargement en cours (ou None)
+        self.reponse = None
 
-        # 1. À gauche : l'image
         self.image = QLabel()
         self.image.setFixedSize(TAILLE_IMAGE)
         self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # 2. À droite : le nom, puis les infos sous forme "libellé : valeur"
         titre = QLabel(self.carte["nom"])
         titre.setObjectName("titre")
         titre.setWordWrap(True)
-        titre.setMinimumWidth(300)  # donne un peu de largeur à la colonne de droite
+        titre.setMinimumWidth(300)
 
         infos = QFormLayout()
         infos.addRow("Code :", QLabel(self.carte["code"]))
@@ -55,17 +52,16 @@ class FenetreCarte(QDialog):
         infos.addRow("Version :", QLabel(self.texte_version()))
 
         bouton_tcgplayer = QPushButton("Voir le prix sur TCGplayer")
-        bouton_tcgplayer.setEnabled(bool(self.carte["tcgplayer_id"]))  # grisé si pas d'id
+        bouton_tcgplayer.setEnabled(bool(self.carte["tcgplayer_id"]))
         bouton_tcgplayer.clicked.connect(self.ouvrir_tcgplayer)
 
-        # 3. Ma collection : un tableau 3 lignes x 4 colonnes
         cadre_collection = QGroupBox("Ma collection")
         tableau = QGridLayout(cadre_collection)
-        tableau.addWidget(QLabel("Possédées"), 0, 1)  # (ligne, colonne)
+        tableau.addWidget(QLabel("Possédées"), 0, 1)
         tableau.addWidget(QLabel("À échanger"), 0, 2)
         tableau.addWidget(QLabel("Recherchée"), 0, 3)
 
-        self.champs = {}  # foil -> (case quantité, case à échanger, case recherchée)
+        self.champs = {}
         for ligne, (foil, texte) in enumerate([(False, "Normale"), (True, "Foil")], start=1):
             version = collection.version(carte_id, foil)
 
@@ -76,8 +72,6 @@ class FenetreCarte(QDialog):
             a_echanger = QSpinBox()
             a_echanger.setRange(0, version["quantite"])
             a_echanger.setValue(version["a_echanger"])
-            # On ne peut pas échanger plus de cartes qu'on en a. Ici, c'est voulu
-            # que valueChanged envoie la valeur : setMaximum en a justement besoin.
             quantite.valueChanged.connect(a_echanger.setMaximum)
 
             recherche = QCheckBox()
@@ -94,13 +88,12 @@ class FenetreCarte(QDialog):
         self.message.setWordWrap(True)
 
         bouton_annuler = QPushButton("Annuler")
-        bouton_annuler.clicked.connect(self.reject)  # reject() ferme sans enregistrer
+        bouton_annuler.clicked.connect(self.reject)
         self.bouton_enregistrer = QPushButton("Enregistrer")
-        self.bouton_enregistrer.setDefault(True)     # bouton déclenché par la touche Entrée
+        self.bouton_enregistrer.setObjectName("principal")
+        self.bouton_enregistrer.setDefault(True)
         self.bouton_enregistrer.clicked.connect(self.enregistrer)
 
-        # Si la collection n'a pas pu être lue, on interdit de la modifier :
-        # on risquerait d'écraser les vraies valeurs avec des zéros.
         if not collection.chargee:
             cadre_collection.setEnabled(False)
             self.bouton_enregistrer.setEnabled(False)
@@ -126,7 +119,6 @@ class FenetreCarte(QDialog):
         self.charger_image()
 
     def versions_saisies(self):
-        """Les valeurs des cases, au même format que Collection.version()."""
         versions = []
         for foil, (quantite, a_echanger, recherche) in self.champs.items():
             versions.append({
@@ -141,20 +133,19 @@ class FenetreCarte(QDialog):
         versions = self.versions_saisies()
         avant = [self.collection.version(self.carte_id, foil) for foil in (False, True)]
         if versions == avant:
-            self.accept()  # rien n'a changé : on ferme sans rien envoyer
+            self.accept()
             return
 
         self.bouton_enregistrer.setEnabled(False)
         self.message.setText("Enregistrement...")
-        QApplication.processEvents()  # affiche le message avant d'attendre Supabase
+        QApplication.processEvents()
         try:
             self.collection.enregistrer(self.carte_id, versions)
         except supabase_client.ErreurSupabase as erreur:
-            # On reste ouvert : l'utilisateur ne perd pas ce qu'il a saisi
             self.message.setText(str(erreur))
             self.bouton_enregistrer.setEnabled(True)
             return
-        self.accept()  # accept() ferme la fenêtre en disant "c'est enregistré"
+        self.accept()
 
     def texte_version(self):
         versions = []
@@ -164,10 +155,9 @@ class FenetreCarte(QDialog):
             versions.append("Signature")
         if self.carte["surnumerotee"]:
             versions.append("Surnumérotée")
-        return ", ".join(versions) or "Normale"  # liste vide -> "Normale"
+        return ", ".join(versions) or "Normale"
 
     def ouvrir_tcgplayer(self):
-        # Ouvre la page de la carte dans le navigateur par défaut
         url = f"https://www.tcgplayer.com/product/{self.carte['tcgplayer_id']}"
         QDesktopServices.openUrl(QUrl(url))
 
@@ -176,7 +166,7 @@ class FenetreCarte(QDialog):
         if not url:
             self.image.setText("Pas d'image")
             return
-        nom = Path(QUrl(url).fileName()).stem  # nom de l'image chez Riot, sans extension
+        nom = Path(QUrl(url).fileName()).stem
         miniature = DOSSIER_IMAGES / f"{nom}.webp"
         self.fichier_grand = DOSSIER_IMAGES / f"{nom}-grande.webp"
 
@@ -184,7 +174,6 @@ class FenetreCarte(QDialog):
             self.afficher_image(QImage(str(self.fichier_grand)))
             return
 
-        # En attendant la grande image, on montre la miniature si on l'a
         if miniature.exists():
             self.afficher_image(QImage(str(miniature)))
         else:
@@ -198,29 +187,25 @@ class FenetreCarte(QDialog):
         self.reponse = None
         reponse.deleteLater()
         if reponse.error() != QNetworkReply.NetworkError.NoError:
-            return  # fenêtre fermée ou pas d'Internet : on garde la miniature
+            return
 
         image = QImage()
         if not image.loadFromData(reponse.readAll()):
             return
-        image.save(str(self.fichier_grand), quality=90)  # taille d'origine, en .webp
+        image.save(str(self.fichier_grand), quality=90)
         self.afficher_image(image)
 
     def afficher_image(self, image):
-        # Avec le zoom de Windows (125 %, 150 %...), un pixel "logique" vaut
-        # plusieurs pixels de l'écran. On réduit l'image à la taille réelle de
-        # l'écran pour qu'elle reste nette.
         zoom = self.devicePixelRatioF()
         pixmap = QPixmap.fromImage(image).scaled(
             TAILLE_IMAGE * zoom,
-            Qt.AspectRatioMode.KeepAspectRatio,  # sans déformer la carte
+            Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
         pixmap.setDevicePixelRatio(zoom)
         self.image.setPixmap(pixmap)
 
     def done(self, resultat):
-        # Appelée à la fermeture (bouton, croix ou Échap) : on annule le téléchargement
         if self.reponse is not None:
             self.reponse.abort()
         super().done(resultat)

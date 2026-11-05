@@ -34,6 +34,7 @@ class FenetreConnexion(QWidget):
         self.case_rester.setChecked(True)
 
         self.bouton = QPushButton("Se connecter")
+        self.bouton.setObjectName("principal")
 
         self.message = QLabel("")
         self.message.setObjectName("erreur")

@@ -1,23 +1,26 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QHBoxLayout,
     QLabel,
     QMainWindow,
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from app import catalogue, supabase_client
-from app.barre_filtres import BarreFiltres
 from app.collection import Collection
 from app.fenetre_carte import FenetreCarte
-from app.fenetre_echanges import FenetreEchanges
-from app.fenetre_progression import FenetreProgression
-from app.grille_cartes import GrilleCartes
 from app.import_catalogue import ImportCatalogue
+from app.page_catalogue import PageCatalogue
+from app.page_collection import PageCollection
+from app.page_echanges import PageEchanges
+from app.page_progression import PageProgression
+from app.page_reglages import PageReglages
 
 
 class FenetrePrincipale(QMainWindow):
@@ -26,114 +29,112 @@ class FenetrePrincipale(QMainWindow):
     def __init__(self, user_id):
         super().__init__()
         self.setWindowTitle("Riftbound Collection")
-        self.resize(1100, 750)
+        self.resize(1280, 800)
 
         self.collection = Collection(user_id)
         self.pseudo = None
-        self.erreur_chargement = ""
+        erreur_chargement = ""
         try:
             self.pseudo = supabase_client.lire_pseudo(user_id)
             self.collection.charger()
-            texte_accueil = f"Bienvenue {self.pseudo} !"
         except supabase_client.ErreurSupabase as erreur:
-            texte_accueil = "Bienvenue !"
-            self.erreur_chargement = str(erreur)
+            erreur_chargement = str(erreur)
 
-        accueil = QLabel(texte_accueil)
-        accueil.setObjectName("titre")
-        self.resume = QLabel()
-        self.bouton_progression = QPushButton("Progression")
-        self.bouton_progression.setEnabled(self.collection.chargee)
-        self.bouton_echanges = QPushButton("Échanges")
-        self.bouton_echanges.setEnabled(self.collection.chargee)
-        self.bouton_maj = QPushButton("Mettre à jour le catalogue")
+        self.page_catalogue = PageCatalogue(self.collection)
+        self.page_collection = PageCollection(self.collection)
+        self.page_echanges = PageEchanges(self.collection, self.pseudo)
+        self.page_progression = PageProgression(self.collection)
+        self.page_reglages = PageReglages()
+
+        self.pages = QStackedWidget()
+        self.groupe_menu = QButtonGroup(self)
+        self.boutons = {}
+
+        barre = QWidget()
+        barre.setObjectName("barre_laterale")
+        barre.setFixedWidth(220)
+        layout_barre = QVBoxLayout(barre)
+        layout_barre.setContentsMargins(0, 0, 0, 16)
+        layout_barre.setSpacing(4)
+
+        logo = QLabel("RIFTBOUND")
+        logo.setObjectName("logo")
+        layout_barre.addWidget(logo)
+
+        menu_haut = [
+            ("Catalogue", self.page_catalogue, False),
+            ("Ma collection", self.page_collection, True),
+            ("Échanges", self.page_echanges, True),
+            ("Progression", self.page_progression, True),
+        ]
+        for texte, page, besoin_collection in menu_haut:
+            layout_barre.addWidget(self.ajouter_page(texte, page, besoin_collection))
+
+        layout_barre.addStretch()
+
+        pseudo = QLabel(self.pseudo or "Hors ligne")
+        pseudo.setObjectName("pseudo")
+        layout_barre.addWidget(pseudo)
+        layout_barre.addSpacing(6)
+        layout_barre.addWidget(self.ajouter_page("Réglages", self.page_reglages, False))
         bouton_deconnexion = QPushButton("Se déconnecter")
-        self.barre_filtres = BarreFiltres()
-        self.grille = GrilleCartes(self.collection)
+        bouton_deconnexion.setObjectName("discret")
+        layout_barre.addWidget(bouton_deconnexion)
 
-        ligne_haut = QHBoxLayout()
-        ligne_haut.addWidget(accueil)
-        ligne_haut.addStretch()
-        ligne_haut.addWidget(self.bouton_progression)
-        ligne_haut.addWidget(self.bouton_echanges)
-        ligne_haut.addWidget(self.bouton_maj)
-        ligne_haut.addWidget(bouton_deconnexion)
+        self.groupe_menu.idClicked.connect(self.pages.setCurrentIndex)
+        self.boutons["Catalogue"].setChecked(True)
 
         zone_centrale = QWidget()
-        layout = QVBoxLayout(zone_centrale)
-        layout.addLayout(ligne_haut)
-        layout.addWidget(self.resume)
-        layout.addWidget(self.barre_filtres)
-        layout.addWidget(self.grille)
+        layout = QHBoxLayout(zone_centrale)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(barre)
+        layout.addWidget(self.pages, stretch=1)
         self.setCentralWidget(zone_centrale)
 
         self.barre_progression = QProgressBar()
         self.barre_progression.setMaximumWidth(250)
         self.barre_progression.hide()
         self.statusBar().addPermanentWidget(self.barre_progression)
+        if erreur_chargement:
+            alerte = QLabel(f"Collection indisponible : {erreur_chargement}")
+            alerte.setObjectName("erreur")
+            self.statusBar().addPermanentWidget(alerte)
 
         self.import_catalogue = ImportCatalogue(self)
         self.import_catalogue.progression.connect(self.import_progresse)
         self.import_catalogue.termine.connect(self.import_termine)
         self.import_catalogue.echec.connect(self.import_echoue)
 
-        self.bouton_progression.clicked.connect(self.ouvrir_progression)
-        self.bouton_echanges.clicked.connect(self.ouvrir_echanges)
-        self.bouton_maj.clicked.connect(self.mettre_a_jour_catalogue)
+        self.page_catalogue.carte_choisie.connect(self.ouvrir_carte)
+        self.page_collection.carte_choisie.connect(self.ouvrir_carte)
+        self.page_reglages.mise_a_jour_demandee.connect(self.mettre_a_jour_catalogue)
         bouton_deconnexion.clicked.connect(self.se_deconnecter)
-        self.barre_filtres.filtres_changes.connect(self.afficher_cartes)
-        self.grille.carte_choisie.connect(self.ouvrir_carte)
 
-        self.mettre_a_jour_resume()
         if catalogue.nombre_cartes() == 0:
             self.mettre_a_jour_catalogue()
         else:
-            self.charger_catalogue()
+            self.page_catalogue.charger()
 
-    def mettre_a_jour_resume(self):
-        if not self.collection.chargee:
-            self.resume.setText(f"Collection indisponible : {self.erreur_chargement}")
-            return
-        total, differentes = self.collection.statistiques()
-        nb_catalogue = catalogue.nombre_cartes()
-        pourcentage = 100 * differentes / nb_catalogue if nb_catalogue else 0
-        self.resume.setText(
-            f"Ta collection : {total} carte(s), dont {differentes} différente(s) "
-            f"sur {nb_catalogue} ({pourcentage:.1f} %)".replace(".", ",")
-        )
-
-    def charger_catalogue(self):
-        self.barre_filtres.remplir(catalogue.valeurs_filtres())
-        self.afficher_cartes()
-        self.mettre_a_jour_resume()
-
-    def afficher_cartes(self):
-        filtres = self.barre_filtres.filtres()
-        possession = filtres.pop("possession")
-
-        cartes = catalogue.lister_cartes(**filtres)
-        if possession:
-            cartes = [c for c in cartes if self.collection.correspond(c["carte_id"], possession)]
-
-        self.grille.afficher(cartes)
-        self.statusBar().showMessage(
-            f"{len(cartes)} carte(s) affichée(s) sur {catalogue.nombre_cartes()}"
-        )
+    def ajouter_page(self, texte, page, besoin_collection):
+        index = self.pages.addWidget(page)
+        bouton = QPushButton(texte)
+        bouton.setObjectName("menu")
+        bouton.setCheckable(True)
+        bouton.setEnabled(self.collection.chargee or not besoin_collection)
+        self.groupe_menu.addButton(bouton, index)
+        self.boutons[texte] = bouton
+        return bouton
 
     def ouvrir_carte(self, carte_id):
         fenetre = FenetreCarte(carte_id, self.collection, self)
         if fenetre.exec():
-            self.grille.rafraichir_carte(carte_id)
-            self.mettre_a_jour_resume()
-
-    def ouvrir_progression(self):
-        FenetreProgression(self.collection, self).exec()
-
-    def ouvrir_echanges(self):
-        FenetreEchanges(self.collection, self.pseudo, self).exec()
+            self.page_catalogue.grille.rafraichir_carte(carte_id)
+            if self.pages.currentWidget() is self.page_collection:
+                self.page_collection.actualiser()
 
     def mettre_a_jour_catalogue(self):
-        self.bouton_maj.setEnabled(False)
+        self.page_reglages.bouton_maj.setEnabled(False)
         self.barre_progression.setRange(0, 0)
         self.barre_progression.show()
         self.statusBar().showMessage("Connexion à Riftcodex... (le serveur peut être lent)")
@@ -146,16 +147,17 @@ class FenetrePrincipale(QMainWindow):
 
     def import_termine(self):
         self.fin_import()
-        self.charger_catalogue()
+        self.statusBar().showMessage("Catalogue à jour.", 5000)
 
     def import_echoue(self, message):
         self.fin_import()
-        self.charger_catalogue()
         QMessageBox.warning(self, "Catalogue", message)
 
     def fin_import(self):
         self.barre_progression.hide()
-        self.bouton_maj.setEnabled(True)
+        self.statusBar().clearMessage()
+        self.page_reglages.bouton_maj.setEnabled(True)
+        self.page_catalogue.charger()
 
     def se_deconnecter(self):
         supabase_client.se_deconnecter()

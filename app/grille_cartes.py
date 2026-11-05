@@ -5,6 +5,7 @@ from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPen, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import QListView, QListWidget, QListWidgetItem
 
+from app import theme
 from app.catalogue import DOSSIER_IMAGES
 
 LARGEUR_MINIATURE = 240
@@ -23,7 +24,7 @@ def creer_image_attente():
     peintre = QPainter(pixmap)
     peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
     peintre.setPen(Qt.PenStyle.NoPen)
-    peintre.setBrush(QColor("#c8c8c8"))
+    peintre.setBrush(QColor(theme.SURFACE_HAUTE))
     peintre.drawRoundedRect(pixmap.rect(), 14, 14)
     peintre.end()
     return QIcon(pixmap)
