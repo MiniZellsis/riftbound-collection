@@ -165,7 +165,7 @@ class PageEchanges(QWidget):
             )
         else:
             self.resume.setText(
-                "Aucun échange possible pour l'instant. Dans la fenêtre d'une carte, coche "
+                "Aucun échange possible pour l'instant. Clique sur une carte, puis coche "
                 "« Recherchée » pour celles qui te manquent et indique combien tu en as "
                 "« À échanger » pour tes doubles."
             )

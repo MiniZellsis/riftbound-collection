@@ -55,6 +55,13 @@ class Collection:
             else:
                 self.versions[cle] = dict(version)
 
+    def modifier(self, carte_id, foil, **changements):
+        version = dict(self.version(carte_id, foil))
+        version.update(changements)
+        version["quantite"] = max(0, min(version["quantite"], 99))
+        version["a_echanger"] = max(0, min(version["a_echanger"], version["quantite"]))
+        self.enregistrer(carte_id, [version])
+
     def correspond(self, carte_id, statut):
         normale = self.version(carte_id, False)
         foil = self.version(carte_id, True)

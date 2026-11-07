@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
 
 from app import catalogue, supabase_client
 from app.collection import Collection
-from app.fenetre_carte import FenetreCarte
 from app.images import TelechargementImages
 from app.import_catalogue import ImportCatalogue
 from app.page_catalogue import PageCatalogue
@@ -114,8 +113,6 @@ class FenetrePrincipale(QMainWindow):
         self.telechargement.image_prete.connect(self.page_collection.grille.image_telechargee)
         self.page_catalogue.set_affiche.connect(self.telechargement.prioriser)
 
-        self.page_catalogue.carte_choisie.connect(self.ouvrir_carte)
-        self.page_collection.carte_choisie.connect(self.ouvrir_carte)
         self.page_reglages.mise_a_jour_demandee.connect(self.mettre_a_jour_catalogue)
         bouton_deconnexion.clicked.connect(self.se_deconnecter)
 
@@ -134,12 +131,9 @@ class FenetrePrincipale(QMainWindow):
         self.boutons[texte] = bouton
         return bouton
 
-    def ouvrir_carte(self, carte_id):
-        fenetre = FenetreCarte(carte_id, self.collection, self)
-        if fenetre.exec():
-            self.page_catalogue.collection_modifiee()
-            if self.pages.currentWidget() is self.page_collection:
-                self.page_collection.actualiser()
+    def enregistrer_en_attente(self):
+        self.page_catalogue.zone.enregistrer_maintenant()
+        self.page_collection.zone.enregistrer_maintenant()
 
     def preparer_catalogue(self):
         nombre = self.telechargement.demarrer(catalogue.lister_cartes())
@@ -193,10 +187,12 @@ class FenetrePrincipale(QMainWindow):
         self.preparer_catalogue()
 
     def se_deconnecter(self):
+        self.enregistrer_en_attente()
         supabase_client.se_deconnecter()
         self.deconnexion.emit()
 
     def closeEvent(self, event):
+        self.enregistrer_en_attente()
         self.import_catalogue.arreter()
         self.telechargement.arreter()
         super().closeEvent(event)

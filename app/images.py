@@ -4,24 +4,32 @@ from PySide6.QtCore import QObject, QRectF, Qt, QUrl, QUrlQuery, Signal
 from PySide6.QtGui import QBrush, QImage, QPainter
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 
-from app.catalogue import DOSSIER_MINIATURES
+from app.catalogue import DOSSIER_IMAGES, DOSSIER_MINIATURES
 
 LARGEUR_MINIATURE = 300
+LARGEUR_GRANDE = 744
 ARRONDI = 0.048
 EN_PARALLELE = 24
 DELAI_MAX = 30_000
 
 
+def nom_image(url):
+    return Path(QUrl(url).fileName()).stem
+
+
 def fichier_miniature(url):
-    nom = Path(QUrl(url).fileName()).stem
-    return DOSSIER_MINIATURES / f"{nom}.jpg"
+    return DOSSIER_MINIATURES / f"{nom_image(url)}.jpg"
 
 
-def url_miniature(url):
+def fichier_grand(url):
+    return DOSSIER_IMAGES / f"{nom_image(url)}-grande.webp"
+
+
+def url_redimensionnee(url, largeur, format_image):
     adresse = QUrl(url)
     parametres = QUrlQuery(adresse)
-    parametres.addQueryItem("w", str(LARGEUR_MINIATURE))
-    parametres.addQueryItem("fm", "jpg")
+    parametres.addQueryItem("w", str(largeur))
+    parametres.addQueryItem("fm", format_image)
     adresse.setQuery(parametres)
     return adresse
 
@@ -98,7 +106,7 @@ class TelechargementImages(QObject):
             self.telecharger(self.file.pop(0))
 
     def telecharger(self, url):
-        requete = QNetworkRequest(url_miniature(url))
+        requete = QNetworkRequest(url_redimensionnee(url, LARGEUR_MINIATURE, "jpg"))
         requete.setTransferTimeout(DELAI_MAX)
         reponse = self.reseau.get(requete)
         self.en_cours[url] = reponse

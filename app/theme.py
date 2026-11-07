@@ -1,4 +1,6 @@
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import QMenu
 
 FOND = "#0b1220"
 SURFACE = "#121b2e"
@@ -15,16 +17,15 @@ VERT = "#3fb950"
 
 STYLE = f"""
 QWidget {{
-    background: {FOND};
     color: {TEXTE};
     font-size: 13px;
+}}
+QMainWindow, QDialog {{
+    background: {FOND};
 }}
 QWidget#barre_laterale {{
     background: {BARRE};
     border-right: 1px solid {BORDURE};
-}}
-QWidget#barre_laterale QLabel {{
-    background: transparent;
 }}
 QLabel#logo {{
     color: {OR_CLAIR};
@@ -48,18 +49,38 @@ QLabel#pseudo {{
     font-weight: bold;
     padding: 0 20px;
 }}
+QLabel#section {{
+    color: {TEXTE_ETEINT};
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+}}
+QLabel#etat {{
+    color: {VERT};
+    font-size: 12px;
+}}
+QLabel#nom_carte {{
+    font-size: 20px;
+    font-weight: bold;
+}}
+QLabel#version_carte {{
+    color: {OR_CLAIR};
+    font-size: 12px;
+}}
 QFrame#tuile {{
     background: {SURFACE};
     border: 1px solid {BORDURE};
     border-radius: 10px;
 }}
-QFrame#tuile QLabel {{
-    background: transparent;
-}}
 QLabel#chiffre {{
     color: {OR_CLAIR};
     font-size: 26px;
     font-weight: bold;
+}}
+QFrame#panneau {{
+    background: {SURFACE};
+    border: 1px solid {BORDURE};
+    border-radius: 14px;
 }}
 QPushButton {{
     background: {SURFACE_HAUTE};
@@ -119,6 +140,70 @@ QPushButton#discret {{
 QPushButton#discret:hover {{
     color: {ROUGE};
 }}
+QPushButton#filtre {{
+    background: {SURFACE};
+    border: 1px solid {BORDURE};
+    border-radius: 16px;
+    min-height: 20px;
+    padding: 5px 34px 5px 14px;
+    color: {TEXTE_DOUX};
+    text-align: left;
+}}
+QPushButton#filtre:hover {{
+    border-color: {TEXTE_ETEINT};
+    color: {TEXTE};
+}}
+QPushButton#filtre[actif="true"] {{
+    background: rgba(201, 164, 76, 30);
+    border-color: {OR};
+    color: {OR_CLAIR};
+}}
+QPushButton#lien {{
+    background: transparent;
+    border: none;
+    padding: 4px 6px;
+    color: {OR};
+}}
+QPushButton#lien:hover {{
+    color: {OR_CLAIR};
+    text-decoration: underline;
+}}
+QPushButton#rond {{
+    background: {SURFACE_HAUTE};
+    border: none;
+    border-radius: 13px;
+    min-width: 26px;
+    max-width: 26px;
+    min-height: 26px;
+    max-height: 26px;
+    padding: 0;
+    font-size: 15px;
+    font-weight: bold;
+}}
+QPushButton#rond:hover {{
+    background: {OR};
+    color: {FOND};
+}}
+QPushButton#rond:disabled {{
+    background: transparent;
+    color: {TEXTE_ETEINT};
+}}
+QPushButton#fermer {{
+    background: transparent;
+    border: none;
+    border-radius: 15px;
+    min-width: 30px;
+    max-width: 30px;
+    min-height: 30px;
+    max-height: 30px;
+    padding: 0;
+    font-size: 18px;
+    color: {TEXTE_DOUX};
+}}
+QPushButton#fermer:hover {{
+    background: {SURFACE_HAUTE};
+    color: {TEXTE};
+}}
 QLineEdit, QSpinBox, QComboBox {{
     background: {SURFACE};
     border: 1px solid {BORDURE};
@@ -129,6 +214,11 @@ QLineEdit, QSpinBox, QComboBox {{
 }}
 QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
     border-color: {OR};
+}}
+QLineEdit#recherche {{
+    border-radius: 16px;
+    min-height: 20px;
+    padding: 5px 12px;
 }}
 QCheckBox {{
     spacing: 8px;
@@ -154,18 +244,9 @@ QComboBox QAbstractItemView {{
     selection-color: {OR_CLAIR};
 }}
 QListView {{
-    background: {FOND};
+    background: transparent;
     border: none;
     outline: none;
-}}
-QListView::item:selected {{
-    background: {SURFACE_HAUTE};
-    border-radius: 8px;
-    color: {OR_CLAIR};
-}}
-QListView::item:hover {{
-    background: {SURFACE};
-    border-radius: 8px;
 }}
 QTableView {{
     background: {FOND};
@@ -209,6 +290,16 @@ QProgressBar::chunk {{
     background: {OR};
     border-radius: 5px;
 }}
+QProgressBar#fine {{
+    min-height: 6px;
+    max-height: 6px;
+    border: none;
+    border-radius: 3px;
+    background: {SURFACE_HAUTE};
+}}
+QProgressBar#fine::chunk {{
+    border-radius: 3px;
+}}
 QGroupBox {{
     border: 1px solid {BORDURE};
     border-radius: 8px;
@@ -219,6 +310,22 @@ QGroupBox::title {{
     subcontrol-origin: margin;
     left: 10px;
     color: {OR_CLAIR};
+}}
+QSlider::groove:horizontal {{
+    height: 4px;
+    background: {SURFACE_HAUTE};
+    border-radius: 2px;
+}}
+QSlider::sub-page:horizontal {{
+    background: {OR};
+    border-radius: 2px;
+}}
+QSlider::handle:horizontal {{
+    background: {OR_CLAIR};
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
 }}
 QScrollBar:vertical {{
     background: transparent;
@@ -243,9 +350,6 @@ QStatusBar {{
     color: {TEXTE_DOUX};
     border-top: 1px solid {BORDURE};
 }}
-QStatusBar QLabel {{
-    background: transparent;
-}}
 QToolTip {{
     background: {SURFACE_HAUTE};
     color: {TEXTE};
@@ -255,66 +359,53 @@ QToolTip {{
 QMenu {{
     background: {SURFACE};
     border: 1px solid {BORDURE};
-    padding: 4px;
+    border-radius: 10px;
+    padding: 6px;
 }}
 QMenu::item {{
-    padding: 6px 20px;
-    border-radius: 4px;
+    padding: 7px 18px 7px 12px;
+    border-radius: 6px;
 }}
 QMenu::item:selected {{
     background: {SURFACE_HAUTE};
     color: {OR_CLAIR};
 }}
-
-QPushButton#pastille {{
-    background: {SURFACE};
-    border: 1px solid {BORDURE};
-    border-radius: 12px;
-    padding: 3px 8px;
-    color: {TEXTE_DOUX};
-    font-size: 12px;
-}}
-QPushButton#pastille:hover {{
-    border-color: {TEXTE_ETEINT};
-    color: {TEXTE};
-}}
-QPushButton#pastille:checked {{
-    background: {SURFACE_HAUTE};
-    border-color: {OR};
-    color: {OR_CLAIR};
-}}
-QLabel#groupe {{
+QMenu::item:disabled {{
     color: {TEXTE_ETEINT};
-    font-size: 12px;
-    padding-right: 4px;
 }}
-QSlider::groove:horizontal {{
-    height: 4px;
-    background: {SURFACE_HAUTE};
-    border-radius: 2px;
+QMenu::separator {{
+    height: 1px;
+    background: {BORDURE};
+    margin: 5px 8px;
 }}
-QSlider::sub-page:horizontal {{
-    background: {OR};
-    border-radius: 2px;
-}}
-QSlider::handle:horizontal {{
-    background: {OR_CLAIR};
+QMenu::indicator {{
     width: 14px;
     height: 14px;
-    margin: -5px 0;
-    border-radius: 7px;
-}}
-QProgressBar#fine {{
-    min-height: 6px;
-    max-height: 6px;
-    border: none;
-    border-radius: 3px;
+    border: 1px solid {BORDURE};
+    border-radius: 4px;
     background: {SURFACE_HAUTE};
+    margin-left: 8px;
 }}
-QProgressBar#fine::chunk {{
-    border-radius: 3px;
+QMenu::indicator:checked {{
+    background: {OR};
+    border-color: {OR};
+}}
+QMenu#popover {{
+    border-radius: 14px;
+    padding: 14px;
 }}
 """
+
+
+def creer_menu(parent=None):
+    menu = QMenu(parent)
+    menu.setWindowFlags(
+        menu.windowFlags()
+        | Qt.WindowType.FramelessWindowHint
+        | Qt.WindowType.NoDropShadowWindowHint
+    )
+    menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+    return menu
 
 
 def appliquer_theme(application):

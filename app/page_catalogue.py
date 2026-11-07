@@ -1,15 +1,15 @@
-from PySide6.QtCore import QSettings, Qt, Signal
+from PySide6.QtCore import QSettings, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QTabBar, QVBoxLayout, QWidget
 
 from app import catalogue
 from app.barre_filtres import BarreFiltres
-from app.grille_cartes import GrilleCartes, creer_curseur, lire_largeur
+from app.grille_cartes import ReglageTaille
+from app.zone_cartes import ZoneCartes
 
 NOM_PROMOS = "Promos"
 
 
 class PageCatalogue(QWidget):
-    carte_choisie = Signal(str)
     set_affiche = Signal(list)
 
     def __init__(self, collection, parent=None):
@@ -20,16 +20,14 @@ class PageCatalogue(QWidget):
         self.onglets = QTabBar()
         self.onglets.setDrawBase(False)
         self.onglets.setExpanding(False)
-        self.grille = GrilleCartes(collection)
-        self.curseur = creer_curseur(self.grille)
-        legende_taille = QLabel("Taille des cartes")
-        legende_taille.setObjectName("sous_titre")
+        self.zone = ZoneCartes(collection)
+        self.grille = self.zone.grille
+        self.reglage = ReglageTaille(self.grille)
 
         entete = QHBoxLayout()
         entete.addWidget(self.onglets)
         entete.addStretch()
-        entete.addWidget(legende_taille)
-        entete.addWidget(self.curseur)
+        entete.addWidget(self.reglage)
 
         self.texte_progression = QLabel("")
         self.barre_progression = QProgressBar()
@@ -55,29 +53,24 @@ class PageCatalogue(QWidget):
         layout_haut.addLayout(ligne_progression)
         layout_haut.addWidget(self.barre_filtres)
         self.haut.hide()
-
-        self.message = QLabel("Chargement du catalogue...")
-        self.message.setObjectName("sous_titre")
-        self.message.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.message.setWordWrap(True)
-        self.grille.hide()
+        self.zone.afficher([], "Chargement du catalogue...")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 16, 24, 12)
         layout.setSpacing(10)
         layout.addLayout(entete)
         layout.addWidget(self.haut)
-        layout.addWidget(self.message, stretch=1)
-        layout.addWidget(self.grille, stretch=1)
+        layout.addWidget(self.zone, stretch=1)
 
         self.onglets.currentChanged.connect(self.changer_set)
         self.barre_filtres.filtres_changes.connect(self.afficher_cartes)
-        self.grille.carte_choisie.connect(self.carte_choisie)
+        self.zone.collection_modifiee.connect(self.actualiser_progression)
 
     def showEvent(self, event):
         super().showEvent(event)
         if not event.spontaneous():
-            self.curseur.setValue(lire_largeur())
+            self.reglage.synchroniser()
+            self.actualiser_progression()
 
     def charger(self):
         self.sets = {}
@@ -142,20 +135,18 @@ class PageCatalogue(QWidget):
                 self.onglets.setTabText(index, nom)
 
         cartes = [carte for carte in self.cartes_du_set() if self.correspond(carte, filtres)]
-        self.grille.afficher(cartes)
         self.compteur.setText(f"{len(cartes)} carte(s) affichée(s)")
         self.actualiser_progression()
 
         if not self.sets:
-            self.message.setText("Le catalogue est vide. Mets-le à jour depuis la page Réglages.")
+            message = "Le catalogue est vide. Mets-le à jour depuis la page Réglages."
         else:
-            self.message.setText(
+            message = (
                 "Aucune carte de ce set ne correspond à tes filtres.\n"
                 "Les nombres entre parenthèses, dans les onglets, montrent où en trouver."
             )
+        self.zone.afficher(cartes, message)
         self.haut.setVisible(bool(self.sets))
-        self.message.setVisible(not cartes)
-        self.grille.setVisible(bool(cartes))
 
     def actualiser_progression(self):
         cartes = self.cartes_du_set()
@@ -174,7 +165,3 @@ class PageCatalogue(QWidget):
             )
             self.barre_progression.setRange(0, len(de_base))
             self.barre_progression.setValue(base_possedees)
-
-    def collection_modifiee(self):
-        self.grille.rafraichir()
-        self.actualiser_progression()

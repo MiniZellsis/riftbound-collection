@@ -2,12 +2,15 @@ from PySide6.QtCore import QPointF, QRectF, QSettings, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QHBoxLayout,
+    QLabel,
     QListView,
     QListWidget,
     QListWidgetItem,
     QSlider,
     QStyle,
     QStyledItemDelegate,
+    QWidget,
 )
 
 from app import theme
@@ -31,15 +34,44 @@ def lire_largeur():
     return max(LARGEUR_MIN, min(largeur, LARGEUR_MAX))
 
 
-def creer_curseur(grille):
-    curseur = QSlider(Qt.Orientation.Horizontal)
-    curseur.setRange(LARGEUR_MIN, LARGEUR_MAX)
-    curseur.setSingleStep(10)
-    curseur.setPageStep(20)
-    curseur.setFixedWidth(160)
-    curseur.setValue(grille.largeur)
-    curseur.valueChanged.connect(grille.definir_largeur)
-    return curseur
+def icone_carte(largeur, hauteur):
+    pixmap = QPixmap(largeur * 2, hauteur * 2)
+    pixmap.setDevicePixelRatio(2)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    peintre = QPainter(pixmap)
+    peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
+    peintre.setPen(QPen(QColor(theme.TEXTE_DOUX), 1.4))
+    peintre.drawRoundedRect(QRectF(1, 1, largeur - 2, hauteur - 2), 2, 2)
+    peintre.end()
+    return pixmap
+
+
+class ReglageTaille(QWidget):
+    def __init__(self, grille, parent=None):
+        super().__init__(parent)
+        self.setToolTip("Taille des cartes")
+        self.curseur = QSlider(Qt.Orientation.Horizontal)
+        self.curseur.setRange(LARGEUR_MIN, LARGEUR_MAX)
+        self.curseur.setSingleStep(10)
+        self.curseur.setPageStep(20)
+        self.curseur.setFixedWidth(120)
+        self.curseur.setValue(grille.largeur)
+        self.curseur.valueChanged.connect(grille.definir_largeur)
+
+        petite = QLabel()
+        petite.setPixmap(icone_carte(10, 14))
+        grande = QLabel()
+        grande.setPixmap(icone_carte(14, 20))
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(petite)
+        layout.addWidget(self.curseur)
+        layout.addWidget(grande)
+
+    def synchroniser(self):
+        self.curseur.setValue(lire_largeur())
 
 
 class DelegueCarte(QStyledItemDelegate):
