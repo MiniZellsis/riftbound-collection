@@ -1,33 +1,135 @@
-from pathlib import Path
-
-from PySide6.QtCore import QRect, QSize, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPen, QPixmap
-from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
-from PySide6.QtWidgets import QListView, QListWidget, QListWidgetItem
+from PySide6.QtCore import QPointF, QRectF, QSettings, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QListView,
+    QListWidget,
+    QListWidgetItem,
+    QSlider,
+    QStyle,
+    QStyledItemDelegate,
+)
 
 from app import theme
-from app.catalogue import DOSSIER_IMAGES
+from app.images import ARRONDI, charger_miniature
 
-LARGEUR_MINIATURE = 240
-TAILLE_ICONE = QSize(160, 223)
-TAILLE_CASE = QSize(180, 275)
+LARGEUR_MIN = 120
+LARGEUR_MAX = 280
+LARGEUR_DEFAUT = 160
+RAPPORT = 1.4
+MARGE = 8
+HAUTEUR_NOM = 22
+PAR_TOUR = 12
+OPACITE_MANQUANTE = 0.35
+COULEUR_QUANTITE = QColor("#2e7d32")
+COULEUR_QUANTITE_FOIL = QColor("#b8860b")
 ROLE_CARTE_ID = Qt.ItemDataRole.UserRole
 
-OPACITE_MANQUANTE = 0.35
-COULEUR_PASTILLE = QColor("#2e7d32")
-COULEUR_PASTILLE_FOIL = QColor("#b8860b")
+
+def lire_largeur():
+    largeur = QSettings().value("taille_cartes", LARGEUR_DEFAUT, int)
+    return max(LARGEUR_MIN, min(largeur, LARGEUR_MAX))
 
 
-def creer_image_attente():
-    pixmap = QPixmap(LARGEUR_MINIATURE, 335)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    peintre = QPainter(pixmap)
-    peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
-    peintre.setPen(Qt.PenStyle.NoPen)
-    peintre.setBrush(QColor(theme.SURFACE_HAUTE))
-    peintre.drawRoundedRect(pixmap.rect(), 14, 14)
-    peintre.end()
-    return QIcon(pixmap)
+def creer_curseur(grille):
+    curseur = QSlider(Qt.Orientation.Horizontal)
+    curseur.setRange(LARGEUR_MIN, LARGEUR_MAX)
+    curseur.setSingleStep(10)
+    curseur.setPageStep(20)
+    curseur.setFixedWidth(160)
+    curseur.setValue(grille.largeur)
+    curseur.valueChanged.connect(grille.definir_largeur)
+    return curseur
+
+
+class DelegueCarte(QStyledItemDelegate):
+    def __init__(self, grille):
+        super().__init__(grille)
+        self.grille = grille
+
+    def sizeHint(self, option, index):
+        return self.grille.gridSize()
+
+    def paint(self, peintre, option, index):
+        grille = self.grille
+        carte_id = index.data(ROLE_CARTE_ID)
+        quantite = grille.collection.quantite(carte_id)
+        selectionnee = bool(option.state & QStyle.StateFlag.State_Selected)
+        survolee = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        taille_case = grille.taille_case()
+        case = QRectF(
+            option.rect.x() + (option.rect.width() - taille_case.width()) / 2,
+            option.rect.y(),
+            taille_case.width(),
+            taille_case.height(),
+        )
+
+        peintre.save()
+        peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
+        peintre.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+
+        if selectionnee:
+            peintre.setPen(QPen(QColor(theme.OR), 1))
+            peintre.setBrush(QColor(theme.SURFACE_HAUTE))
+            peintre.drawRoundedRect(case.adjusted(2, 2, -2, -2), 10, 10)
+        elif survolee:
+            peintre.setPen(Qt.PenStyle.NoPen)
+            peintre.setBrush(QColor(theme.SURFACE))
+            peintre.drawRoundedRect(case.adjusted(2, 2, -2, -2), 10, 10)
+
+        zone = QRectF(case.x() + MARGE, case.y() + MARGE, grille.largeur, grille.hauteur())
+        image = grille.images.get(carte_id)
+        if image is None:
+            rayon = zone.width() * ARRONDI
+            peintre.setPen(Qt.PenStyle.NoPen)
+            peintre.setBrush(QColor(theme.SURFACE_HAUTE))
+            peintre.drawRoundedRect(zone, rayon, rayon)
+        else:
+            taille = image.deviceIndependentSize().scaled(zone.size(), Qt.AspectRatioMode.KeepAspectRatio)
+            cible = QRectF(QPointF(0, 0), taille)
+            cible.moveCenter(zone.center())
+            if quantite == 0:
+                peintre.setOpacity(OPACITE_MANQUANTE)
+            peintre.drawPixmap(cible, image, QRectF(image.rect()))
+            peintre.setOpacity(1)
+            zone = cible
+
+        if quantite > 0:
+            self.dessiner_quantite(peintre, zone, quantite, grille.collection.a_une_foil(carte_id))
+
+        if selectionnee:
+            peintre.setPen(QColor(theme.OR_CLAIR))
+        elif quantite > 0:
+            peintre.setPen(QColor(theme.TEXTE))
+        else:
+            peintre.setPen(QColor(theme.TEXTE_DOUX))
+        police = QFont(option.font)
+        police.setPixelSize(12)
+        peintre.setFont(police)
+        texte = QRectF(case.x() + 4, case.y() + MARGE + grille.hauteur() + 4, case.width() - 8, HAUTEUR_NOM)
+        nom = peintre.fontMetrics().elidedText(index.data(), Qt.TextElideMode.ElideRight, int(texte.width()))
+        peintre.drawText(texte, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, nom)
+
+        peintre.restore()
+
+    def dessiner_quantite(self, peintre, zone, quantite, foil):
+        diametre = max(22, zone.width() * 0.22)
+        decalage = zone.width() * 0.04
+        rond = QRectF(
+            zone.right() - diametre - decalage,
+            zone.bottom() - diametre - decalage,
+            diametre,
+            diametre,
+        )
+        peintre.setPen(QPen(QColor("white"), max(2, diametre / 16)))
+        peintre.setBrush(COULEUR_QUANTITE_FOIL if foil else COULEUR_QUANTITE)
+        peintre.drawEllipse(rond)
+
+        police = QFont(peintre.font())
+        police.setPixelSize(round(diametre * 0.5))
+        police.setBold(True)
+        peintre.setFont(police)
+        peintre.drawText(rond, Qt.AlignmentFlag.AlignCenter, str(quantite))
 
 
 class GrilleCartes(QListWidget):
@@ -36,128 +138,96 @@ class GrilleCartes(QListWidget):
     def __init__(self, collection, parent=None):
         super().__init__(parent)
         self.collection = collection
+        self.largeur = lire_largeur()
+        self.images = {}
+        self.urls = {}
+        self.a_charger = []
+
         self.setViewMode(QListView.ViewMode.IconMode)
-        self.setIconSize(TAILLE_ICONE)
-        self.setGridSize(TAILLE_CASE)
         self.setResizeMode(QListView.ResizeMode.Adjust)
         self.setMovement(QListView.Movement.Static)
         self.setUniformItemSizes(True)
-        self.setWordWrap(True)
+        self.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.verticalScrollBar().setSingleStep(40)
+        self.viewport().setAttribute(Qt.WidgetAttribute.WA_Hover)
+        self.setItemDelegate(DelegueCarte(self))
+        self.ajuster_colonnes()
 
-        self.reseau = QNetworkAccessManager(self)
-        self.image_attente = creer_image_attente()
-        self.elements = {}
-        self.urls = {}
-        self.chargees = set()
+        self.chargeur = QTimer(self)
+        self.chargeur.setInterval(0)
+        self.chargeur.timeout.connect(self.charger_suite)
 
-        self.minuteur = QTimer(self)
-        self.minuteur.setSingleShot(True)
-        self.minuteur.setInterval(150)
-        self.minuteur.timeout.connect(self.mettre_a_jour_images)
-        self.verticalScrollBar().valueChanged.connect(self.planifier_images)
+        self.minuteur_taille = QTimer(self)
+        self.minuteur_taille.setSingleShot(True)
+        self.minuteur_taille.setInterval(250)
+        self.minuteur_taille.timeout.connect(self.recharger_images)
 
         self.itemActivated.connect(self.element_active)
+
+    def hauteur(self):
+        return round(self.largeur * RAPPORT)
+
+    def taille_case(self):
+        return QSize(self.largeur + 2 * MARGE, self.hauteur() + 2 * MARGE + HAUTEUR_NOM)
+
+    def ajuster_colonnes(self):
+        case = self.taille_case()
+        largeur_visible = self.viewport().width()
+        colonnes = max(1, largeur_visible // case.width())
+        self.setGridSize(QSize(max(case.width(), largeur_visible // colonnes), case.height()))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.ajuster_colonnes()
 
     def element_active(self, element):
         self.carte_choisie.emit(element.data(ROLE_CARTE_ID))
 
-    def planifier_images(self):
-        self.minuteur.start()
+    def precharger(self, cartes):
+        self.urls = {carte["carte_id"]: carte["image_url"] for carte in cartes}
+        self.images = {carte_id: image for carte_id, image in self.images.items() if carte_id in self.urls}
+        self.a_charger = [carte_id for carte_id in self.urls if carte_id not in self.images]
+        self.chargeur.start()
 
     def afficher(self, cartes):
         self.clear()
-        self.elements.clear()
-        self.urls.clear()
-        self.chargees.clear()
         for carte in cartes:
-            element = QListWidgetItem(self.image_attente, carte["nom"])
+            element = QListWidgetItem(carte["nom"])
             element.setData(ROLE_CARTE_ID, carte["carte_id"])
             element.setToolTip(
                 f"{carte['nom']}\n{carte['set_nom']} - n°{carte['numero']}\n{carte['rarete']}"
             )
             self.addItem(element)
-            self.elements[carte["carte_id"]] = element
-            self.urls[carte["carte_id"]] = carte["image_url"]
-        self.planifier_images()
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.planifier_images()
+    def charger_suite(self):
+        zoom = self.devicePixelRatioF()
+        taille = QSize(round(self.largeur * zoom), round(self.hauteur() * zoom))
+        for carte_id in self.a_charger[:PAR_TOUR]:
+            image = charger_miniature(self.urls[carte_id], taille)
+            if image is not None:
+                pixmap = QPixmap.fromImage(image)
+                pixmap.setDevicePixelRatio(zoom)
+                self.images[carte_id] = pixmap
+        del self.a_charger[:PAR_TOUR]
+        if not self.a_charger:
+            self.chargeur.stop()
+        self.viewport().update()
 
-    def mettre_a_jour_images(self):
-        ecran = self.viewport().rect()
-        zone = ecran.adjusted(0, -ecran.height(), 0, ecran.height())
+    def image_telechargee(self, url):
+        for carte_id, adresse in self.urls.items():
+            if adresse == url and carte_id not in self.a_charger:
+                self.a_charger.append(carte_id)
+        self.chargeur.start()
 
-        for carte_id, element in self.elements.items():
-            proche = self.visualItemRect(element).intersects(zone)
-            if proche and carte_id not in self.chargees:
-                self.chargees.add(carte_id)
-                self.charger_image(carte_id)
-            elif not proche and carte_id in self.chargees:
-                self.chargees.discard(carte_id)
-                element.setIcon(self.image_attente)
+    def definir_largeur(self, largeur):
+        self.largeur = largeur
+        QSettings().setValue("taille_cartes", largeur)
+        self.ajuster_colonnes()
+        self.minuteur_taille.start()
 
-    def charger_image(self, carte_id):
-        url = self.urls[carte_id]
-        if not url:
-            return
-        fichier = DOSSIER_IMAGES / Path(QUrl(url).fileName()).with_suffix(".webp")
+    def recharger_images(self):
+        self.a_charger = list(self.urls)
+        self.chargeur.start()
 
-        if fichier.exists():
-            self.elements[carte_id].setIcon(self.creer_icone(QImage(str(fichier)), carte_id))
-            return
-
-        reponse = self.reseau.get(QNetworkRequest(QUrl(url)))
-        reponse.finished.connect(lambda: self.image_recue(reponse, carte_id, fichier))
-
-    def image_recue(self, reponse, carte_id, fichier):
-        reponse.deleteLater()
-        if reponse.error() != QNetworkReply.NetworkError.NoError:
-            self.chargees.discard(carte_id)
-            return
-
-        image = QImage()
-        if not image.loadFromData(reponse.readAll()):
-            return
-        miniature = image.scaledToWidth(
-            LARGEUR_MINIATURE, Qt.TransformationMode.SmoothTransformation
-        )
-        miniature.save(str(fichier), quality=85)
-
-        if carte_id in self.chargees:
-            self.elements[carte_id].setIcon(self.creer_icone(miniature, carte_id))
-
-    def creer_icone(self, image, carte_id):
-        pixmap = QPixmap.fromImage(image)
-        quantite = self.collection.quantite(carte_id)
-
-        if quantite == 0:
-            pale = QPixmap(pixmap.size())
-            pale.fill(Qt.GlobalColor.transparent)
-            peintre = QPainter(pale)
-            peintre.setOpacity(OPACITE_MANQUANTE)
-            peintre.drawPixmap(0, 0, pixmap)
-            peintre.end()
-            return QIcon(pale)
-
-        peintre = QPainter(pixmap)
-        peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
-        if self.collection.a_une_foil(carte_id):
-            peintre.setBrush(COULEUR_PASTILLE_FOIL)
-        else:
-            peintre.setBrush(COULEUR_PASTILLE)
-        peintre.setPen(QPen(Qt.GlobalColor.white, 3))
-        cercle = QRect(pixmap.width() - 66, pixmap.height() - 66, 58, 58)
-        peintre.drawEllipse(cercle)
-
-        police = peintre.font()
-        police.setPixelSize(28)
-        police.setBold(True)
-        peintre.setFont(police)
-        peintre.drawText(cercle, Qt.AlignmentFlag.AlignCenter, str(quantite))
-        peintre.end()
-        return QIcon(pixmap)
-
-    def rafraichir_carte(self, carte_id):
-        if carte_id in self.chargees:
-            self.charger_image(carte_id)
+    def rafraichir(self):
+        self.viewport().update()

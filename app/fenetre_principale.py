@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from app import catalogue, supabase_client
 from app.collection import Collection
 from app.fenetre_carte import FenetreCarte
+from app.images import TelechargementImages
 from app.import_catalogue import ImportCatalogue
 from app.page_catalogue import PageCatalogue
 from app.page_collection import PageCollection
@@ -106,6 +107,13 @@ class FenetrePrincipale(QMainWindow):
         self.import_catalogue.termine.connect(self.import_termine)
         self.import_catalogue.echec.connect(self.import_echoue)
 
+        self.telechargement = TelechargementImages(self)
+        self.telechargement.progression.connect(self.images_progressent)
+        self.telechargement.termine.connect(self.images_terminees)
+        self.telechargement.image_prete.connect(self.page_catalogue.grille.image_telechargee)
+        self.telechargement.image_prete.connect(self.page_collection.grille.image_telechargee)
+        self.page_catalogue.set_affiche.connect(self.telechargement.prioriser)
+
         self.page_catalogue.carte_choisie.connect(self.ouvrir_carte)
         self.page_collection.carte_choisie.connect(self.ouvrir_carte)
         self.page_reglages.mise_a_jour_demandee.connect(self.mettre_a_jour_catalogue)
@@ -114,7 +122,7 @@ class FenetrePrincipale(QMainWindow):
         if catalogue.nombre_cartes() == 0:
             self.mettre_a_jour_catalogue()
         else:
-            self.page_catalogue.charger()
+            self.preparer_catalogue()
 
     def ajouter_page(self, texte, page, besoin_collection):
         index = self.pages.addWidget(page)
@@ -129,11 +137,36 @@ class FenetrePrincipale(QMainWindow):
     def ouvrir_carte(self, carte_id):
         fenetre = FenetreCarte(carte_id, self.collection, self)
         if fenetre.exec():
-            self.page_catalogue.grille.rafraichir_carte(carte_id)
+            self.page_catalogue.collection_modifiee()
             if self.pages.currentWidget() is self.page_collection:
                 self.page_collection.actualiser()
 
+    def preparer_catalogue(self):
+        nombre = self.telechargement.demarrer(catalogue.lister_cartes())
+        self.page_catalogue.charger()
+        if nombre:
+            self.barre_progression.setRange(0, nombre)
+            self.barre_progression.setValue(0)
+            self.barre_progression.show()
+            self.statusBar().showMessage(f"Téléchargement des images : 0/{nombre}")
+
+    def images_progressent(self, faites, total):
+        self.barre_progression.setRange(0, total)
+        self.barre_progression.setValue(faites)
+        self.statusBar().showMessage(f"Téléchargement des images : {faites}/{total}")
+
+    def images_terminees(self, echecs):
+        self.barre_progression.hide()
+        if echecs:
+            self.statusBar().showMessage(
+                f"{echecs} image(s) n'ont pas pu être téléchargées. Nouvel essai au prochain lancement.",
+                10000,
+            )
+        else:
+            self.statusBar().showMessage("Toutes les images sont téléchargées.", 5000)
+
     def mettre_a_jour_catalogue(self):
+        self.telechargement.arreter()
         self.page_reglages.bouton_maj.setEnabled(False)
         self.barre_progression.setRange(0, 0)
         self.barre_progression.show()
@@ -146,18 +179,18 @@ class FenetrePrincipale(QMainWindow):
         self.statusBar().showMessage(f"Téléchargement du catalogue : page {page}/{nb_pages}")
 
     def import_termine(self):
-        self.fin_import()
         self.statusBar().showMessage("Catalogue à jour.", 5000)
+        self.fin_import()
 
     def import_echoue(self, message):
+        self.statusBar().clearMessage()
         self.fin_import()
         QMessageBox.warning(self, "Catalogue", message)
 
     def fin_import(self):
         self.barre_progression.hide()
-        self.statusBar().clearMessage()
         self.page_reglages.bouton_maj.setEnabled(True)
-        self.page_catalogue.charger()
+        self.preparer_catalogue()
 
     def se_deconnecter(self):
         supabase_client.se_deconnecter()
@@ -165,4 +198,5 @@ class FenetrePrincipale(QMainWindow):
 
     def closeEvent(self, event):
         self.import_catalogue.arreter()
+        self.telechargement.arreter()
         super().closeEvent(event)

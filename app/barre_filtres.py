@@ -1,104 +1,149 @@
-"""Barre de recherche et de filtres, au-dessus de la grille."""
-from PySide6.QtCore import QTimer, Signal
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLineEdit, QPushButton, QWidget
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget
+
+STATUTS = [
+    ("possedees", "Possédées", None),
+    ("manquantes", "Manquantes", None),
+    ("a_echanger", "À échanger", None),
+    ("recherchees", "Recherchées", None),
+]
+
+DOMAINES = [
+    ("Fury", "Fury", "#e5534b"),
+    ("Calm", "Calm", "#3fb950"),
+    ("Mind", "Mind", "#4c9be8"),
+    ("Body", "Body", "#f0883e"),
+    ("Chaos", "Chaos", "#a371f7"),
+    ("Order", "Order", "#e3c06a"),
+    ("Colorless", "Colorless", "#8f9bb3"),
+]
+
+RARETES = [
+    ("Common", "Common", "#b0b8c8"),
+    ("Uncommon", "Uncommon", "#3fb950"),
+    ("Rare", "Rare", "#4c9be8"),
+    ("Epic", "Epic", "#a371f7"),
+    ("Showcase", "Showcase", "#e3c06a"),
+    ("Promo", "Promo", "#f778ba"),
+]
+
+TYPES = [
+    ("Unit", "Unit", None),
+    ("Spell", "Spell", None),
+    ("Gear", "Gear", None),
+    ("Legend", "Legend", None),
+    ("Battlefield", "Battlefield", None),
+    ("Rune", "Rune", None),
+]
+
+
+def creer_rond(couleur):
+    pixmap = QPixmap(20, 20)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    peintre = QPainter(pixmap)
+    peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
+    peintre.setPen(Qt.PenStyle.NoPen)
+    peintre.setBrush(QColor(couleur))
+    peintre.drawEllipse(pixmap.rect())
+    peintre.end()
+    return QIcon(pixmap)
+
+
+def creer_pastille(texte, couleur):
+    pastille = QPushButton(texte)
+    pastille.setObjectName("pastille")
+    pastille.setCheckable(True)
+    pastille.setCursor(Qt.CursorShape.PointingHandCursor)
+    if couleur:
+        pastille.setIcon(creer_rond(couleur))
+        pastille.setIconSize(QSize(10, 10))
+        pastille.setStyleSheet(
+            f"QPushButton#pastille:checked {{ border-color: {couleur}; color: {couleur}; }}"
+        )
+    return pastille
 
 
 class BarreFiltres(QWidget):
-    filtres_changes = Signal()  # prévient la fenêtre qu'il faut relancer la recherche
+    filtres_changes = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.groupes = {}
+
         self.recherche = QLineEdit()
-        self.recherche.setPlaceholderText("Rechercher un nom ou un code (ex. ogn-001)")
-        self.recherche.setClearButtonEnabled(True)  # petite croix pour vider le champ
+        self.recherche.setPlaceholderText("Rechercher une carte (nom ou code)")
+        self.recherche.setClearButtonEnabled(True)
+        self.bouton_effacer = QPushButton("Effacer les filtres")
+        self.bouton_effacer.setEnabled(False)
 
-        # Filtre "Ma collection" : ses choix ne dépendent pas du catalogue
-        self.liste_collection = QComboBox()
-        self.liste_collection.addItem("Toutes les cartes", "")
-        self.liste_collection.addItem("Possédées", "possedees")
-        self.liste_collection.addItem("Manquantes", "manquantes")
-        self.liste_collection.addItem("À échanger", "a_echanger")
-        self.liste_collection.addItem("Recherchées", "recherchees")
+        ligne_haut = QHBoxLayout()
+        ligne_haut.setSpacing(4)
+        ligne_haut.addWidget(self.recherche, stretch=1)
+        ligne_haut.addSpacing(12)
+        self.ajouter_groupe(ligne_haut, "statuts", "Collection", STATUTS)
+        ligne_haut.addSpacing(12)
+        ligne_haut.addWidget(self.bouton_effacer)
 
-        self.liste_set = QComboBox()
-        self.liste_rarete = QComboBox()
-        self.liste_domaine = QComboBox()
-        self.liste_type = QComboBox()
-        self.listes = [
-            self.liste_collection,
-            self.liste_set,
-            self.liste_rarete,
-            self.liste_domaine,
-            self.liste_type,
-        ]
+        ligne_milieu = QHBoxLayout()
+        ligne_milieu.setSpacing(4)
+        self.ajouter_groupe(ligne_milieu, "domaines", "Domaine", DOMAINES)
+        ligne_milieu.addStretch()
 
-        bouton_effacer = QPushButton("Effacer les filtres")
+        ligne_bas = QHBoxLayout()
+        ligne_bas.setSpacing(4)
+        self.ajouter_groupe(ligne_bas, "raretes", "Rareté", RARETES)
+        ligne_bas.addSpacing(20)
+        self.ajouter_groupe(ligne_bas, "types", "Type", TYPES)
+        ligne_bas.addStretch()
 
-        layout = QHBoxLayout(self)
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.recherche, stretch=1)  # la recherche prend la place restante
-        for liste in self.listes:
-            # Les noms de sets sont longs : la liste fermée les coupe, la liste
-            # ouverte les montre en entier
-            liste.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-            liste.setMinimumContentsLength(10)
-            liste.currentIndexChanged.connect(self.changement)
-            layout.addWidget(liste)
-        layout.addWidget(bouton_effacer)
+        layout.setSpacing(8)
+        layout.addLayout(ligne_haut)
+        layout.addLayout(ligne_milieu)
+        layout.addLayout(ligne_bas)
 
-        # Pour la recherche texte, on attend 250 ms après la dernière touche :
-        # pas de recherche à chaque lettre quand on tape vite
         self.minuteur = QTimer(self)
         self.minuteur.setSingleShot(True)
         self.minuteur.setInterval(250)
         self.minuteur.timeout.connect(self.changement)
         self.recherche.textChanged.connect(self.texte_modifie)
+        self.bouton_effacer.clicked.connect(self.effacer)
 
-        bouton_effacer.clicked.connect(self.effacer)
+    def ajouter_groupe(self, ligne, nom, titre, choix):
+        etiquette = QLabel(titre)
+        etiquette.setObjectName("groupe")
+        ligne.addWidget(etiquette)
+        self.groupes[nom] = {}
+        for valeur, texte, couleur in choix:
+            pastille = creer_pastille(texte, couleur)
+            pastille.toggled.connect(self.changement)
+            ligne.addWidget(pastille)
+            self.groupes[nom][valeur] = pastille
 
     def texte_modifie(self):
         self.minuteur.start()
 
     def changement(self):
+        self.bouton_effacer.setEnabled(self.actifs())
         self.filtres_changes.emit()
 
-    def remplir(self, valeurs):
-        """Remplit les listes avec les choix donnés par catalogue.valeurs_filtres()."""
-        self._remplir_liste(self.liste_set, "Tous les sets", valeurs["sets"])
-        self._remplir_liste(self.liste_rarete, "Toutes les raretés", valeurs["raretes"])
-        self._remplir_liste(self.liste_domaine, "Tous les domaines", valeurs["domaines"])
-        self._remplir_liste(self.liste_type, "Tous les types", valeurs["types"])
-
-    def _remplir_liste(self, liste, texte_tous, choix):
-        actuel = liste.currentData()  # on garde le choix en cours si possible
-        liste.blockSignals(True)      # pas de recherche pendant qu'on remplit
-        liste.clear()
-        # Chaque choix a un texte (affiché) et une valeur (utilisée pour le filtre)
-        liste.addItem(texte_tous, "")
-        for texte, valeur in choix:
-            liste.addItem(texte, valeur)
-        liste.setCurrentIndex(max(liste.findData(actuel), 0))
-        liste.blockSignals(False)
-
     def filtres(self):
-        """Les filtres choisis, sous forme de dictionnaire."""
-        return {
-            "possession": self.liste_collection.currentData(),
-            "texte": self.recherche.text().strip(),
-            "set_code": self.liste_set.currentData(),
-            "rarete": self.liste_rarete.currentData(),
-            "domaine": self.liste_domaine.currentData(),
-            "type_carte": self.liste_type.currentData(),
-        }
+        choix = {"texte": self.recherche.text().strip().lower()}
+        for nom, pastilles in self.groupes.items():
+            choix[nom] = [valeur for valeur, pastille in pastilles.items() if pastille.isChecked()]
+        return choix
+
+    def actifs(self):
+        return any(self.filtres().values())
 
     def effacer(self):
-        # On bloque les signaux pour ne lancer qu'une seule recherche à la fin
-        for widget in [self.recherche] + self.listes:
-            widget.blockSignals(True)
+        self.blockSignals(True)
         self.recherche.clear()
-        for liste in self.listes:
-            liste.setCurrentIndex(0)
-        for widget in [self.recherche] + self.listes:
-            widget.blockSignals(False)
-        self.minuteur.stop()  # au cas où une recherche texte était en attente
+        for pastilles in self.groupes.values():
+            for pastille in pastilles.values():
+                pastille.setChecked(False)
+        self.blockSignals(False)
+        self.minuteur.stop()
         self.changement()

@@ -265,6 +265,55 @@ QMenu::item:selected {{
     background: {SURFACE_HAUTE};
     color: {OR_CLAIR};
 }}
+
+QPushButton#pastille {{
+    background: {SURFACE};
+    border: 1px solid {BORDURE};
+    border-radius: 12px;
+    padding: 3px 8px;
+    color: {TEXTE_DOUX};
+    font-size: 12px;
+}}
+QPushButton#pastille:hover {{
+    border-color: {TEXTE_ETEINT};
+    color: {TEXTE};
+}}
+QPushButton#pastille:checked {{
+    background: {SURFACE_HAUTE};
+    border-color: {OR};
+    color: {OR_CLAIR};
+}}
+QLabel#groupe {{
+    color: {TEXTE_ETEINT};
+    font-size: 12px;
+    padding-right: 4px;
+}}
+QSlider::groove:horizontal {{
+    height: 4px;
+    background: {SURFACE_HAUTE};
+    border-radius: 2px;
+}}
+QSlider::sub-page:horizontal {{
+    background: {OR};
+    border-radius: 2px;
+}}
+QSlider::handle:horizontal {{
+    background: {OR_CLAIR};
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+}}
+QProgressBar#fine {{
+    min-height: 6px;
+    max-height: 6px;
+    border: none;
+    border-radius: 3px;
+    background: {SURFACE_HAUTE};
+}}
+QProgressBar#fine::chunk {{
+    border-radius: 3px;
+}}
 """
 
 

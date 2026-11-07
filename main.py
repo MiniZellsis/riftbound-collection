@@ -49,6 +49,8 @@ class Application:
 if __name__ == "__main__":
     catalogue.creer_base()
     qt_app = QApplication(sys.argv)
+    qt_app.setOrganizationName("RiftboundCollection")
+    qt_app.setApplicationName("RiftboundCollection")
     theme.appliquer_theme(qt_app)
     sys.excepthook = afficher_erreur
     QNetworkProxyFactory.setUseSystemConfiguration(True)

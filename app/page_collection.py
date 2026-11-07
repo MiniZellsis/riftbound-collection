@@ -2,7 +2,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from app import catalogue
-from app.grille_cartes import GrilleCartes
+from app.grille_cartes import GrilleCartes, creer_curseur, lire_largeur
 
 TUILES = [
     ("total", "cartes"),
@@ -22,6 +22,16 @@ class PageCollection(QWidget):
 
         titre = QLabel("Ma collection")
         titre.setObjectName("titre")
+        self.grille = GrilleCartes(collection)
+        self.curseur = creer_curseur(self.grille)
+        legende_taille = QLabel("Taille des cartes")
+        legende_taille.setObjectName("sous_titre")
+
+        entete = QHBoxLayout()
+        entete.addWidget(titre)
+        entete.addStretch()
+        entete.addWidget(legende_taille)
+        entete.addWidget(self.curseur)
 
         ligne_tuiles = QHBoxLayout()
         ligne_tuiles.setSpacing(12)
@@ -38,12 +48,10 @@ class PageCollection(QWidget):
         self.message_vide.setWordWrap(True)
         self.message_vide.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.grille = GrilleCartes(collection)
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 12)
         layout.setSpacing(16)
-        layout.addWidget(titre)
+        layout.addLayout(entete)
         layout.addLayout(ligne_tuiles)
         layout.addWidget(self.message_vide, stretch=1)
         layout.addWidget(self.grille, stretch=1)
@@ -79,6 +87,7 @@ class PageCollection(QWidget):
         )
 
         cartes = [c for c in catalogue.lister_cartes() if self.collection.quantite(c["carte_id"]) > 0]
+        self.grille.precharger(cartes)
         self.grille.afficher(cartes)
         self.message_vide.setVisible(not cartes)
         self.grille.setVisible(bool(cartes))
@@ -86,4 +95,5 @@ class PageCollection(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         if not event.spontaneous():
+            self.curseur.setValue(lire_largeur())
             self.actualiser()

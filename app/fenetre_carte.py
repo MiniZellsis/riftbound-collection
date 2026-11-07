@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from app import catalogue, supabase_client
 from app.catalogue import DOSSIER_IMAGES
+from app.images import arrondir, fichier_miniature
 
 TAILLE_IMAGE = QSize(450, 630)
 
@@ -167,7 +168,7 @@ class FenetreCarte(QDialog):
             self.image.setText("Pas d'image")
             return
         nom = Path(QUrl(url).fileName()).stem
-        miniature = DOSSIER_IMAGES / f"{nom}.webp"
+        miniature = fichier_miniature(url)
         self.fichier_grand = DOSSIER_IMAGES / f"{nom}-grande.webp"
 
         if self.fichier_grand.exists():
@@ -175,7 +176,7 @@ class FenetreCarte(QDialog):
             return
 
         if miniature.exists():
-            self.afficher_image(QImage(str(miniature)))
+            self.afficher_image(arrondir(QImage(str(miniature))))
         else:
             self.image.setText("Chargement de l'image...")
 

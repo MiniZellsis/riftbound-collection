@@ -7,8 +7,8 @@ from pathlib import Path
 DOSSIER_DONNEES = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "RiftboundCollection"
 CHEMIN_BASE = DOSSIER_DONNEES / "catalogue.db"
 DOSSIER_IMAGES = DOSSIER_DONNEES / "images"
+DOSSIER_MINIATURES = DOSSIER_DONNEES / "miniatures"
 
-ORDRE_RARETES = ["Common", "Uncommon", "Rare", "Epic", "Showcase", "Promo"]
 CODE_SIMPLE = re.compile(r"[a-z]+-(\d+)-(\d+)")
 
 
@@ -25,6 +25,7 @@ def ouvrir_base():
 
 def creer_base():
     DOSSIER_IMAGES.mkdir(parents=True, exist_ok=True)
+    DOSSIER_MINIATURES.mkdir(parents=True, exist_ok=True)
     with ouvrir_base() as base:
         base.execute("""
             create table if not exists cartes (
@@ -101,57 +102,14 @@ def nombre_cartes():
         return base.execute("select count(*) from cartes").fetchone()[0]
 
 
-def lister_cartes(texte="", set_code="", rarete="", domaine="", type_carte=""):
-    conditions = []
-    if texte:
-        conditions.append("(nom like :texte or code like :texte)")
-    if set_code:
-        conditions.append("set_code = :set_code")
-    if rarete:
-        conditions.append("rarete = :rarete")
-    if domaine:
-        conditions.append("domaines like :domaine")
-    if type_carte:
-        conditions.append("type = :type_carte")
-    where = ("where " + " and ".join(conditions)) if conditions else ""
-
-    valeurs = {
-        "texte": f"%{texte}%",
-        "set_code": set_code,
-        "rarete": rarete,
-        "domaine": f"%{domaine}%",
-        "type_carte": type_carte,
-    }
+def lister_cartes():
     with ouvrir_base() as base:
-        return base.execute(f"""
-            select carte_id, nom, set_nom, numero, rarete, image_url
+        return base.execute("""
+            select carte_id, code, nom, set_code, set_nom, numero, rarete, type,
+                   domaines, image_url
             from cartes
-            {where}
             order by set_nom like '%Promotional%', set_code, numero, code
-        """, valeurs).fetchall()
-
-
-def valeurs_filtres():
-    with ouvrir_base() as base:
-        sets = base.execute("""
-            select distinct set_nom, set_code from cartes
-            order by set_nom like '%Promotional%', set_code
         """).fetchall()
-        raretes = [ligne["rarete"] for ligne in base.execute("select distinct rarete from cartes")]
-        types = [ligne["type"] for ligne in base.execute("select distinct type from cartes order by type")]
-        domaines = set()
-        for ligne in base.execute("select distinct domaines from cartes"):
-            domaines.update(d for d in ligne["domaines"].split(", ") if d)
-
-    raretes_triees = [r for r in ORDRE_RARETES if r in raretes]
-    raretes_triees += sorted(r for r in raretes if r and r not in ORDRE_RARETES)
-
-    return {
-        "sets": [(ligne["set_nom"], ligne["set_code"]) for ligne in sets],
-        "raretes": [(r, r) for r in raretes_triees],
-        "domaines": [(d, d) for d in sorted(domaines)],
-        "types": [(t, t) for t in types if t],
-    }
 
 
 def lire_carte(carte_id):
