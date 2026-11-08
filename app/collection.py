@@ -1,4 +1,4 @@
-from app import supabase_client
+from app import catalogue, supabase_client
 
 
 def version_vide(version):
@@ -7,6 +7,10 @@ def version_vide(version):
         and version["a_echanger"] == 0
         and not version["recherche"]
     )
+
+
+def version_videe(foil):
+    return {"foil": foil, "quantite": 0, "a_echanger": 0, "recherche": False}
 
 
 class Collection:
@@ -25,10 +29,32 @@ class Collection:
                 "recherche": ligne["recherche"],
             }
         self.chargee = True
+        try:
+            self.passer_en_foil(catalogue.cartes_toujours_foil())
+        except supabase_client.ErreurSupabase:
+            pass
+
+    def passer_en_foil(self, toujours_foil):
+        normales = [carte_id for carte_id, foil in self.versions if not foil and carte_id in toujours_foil]
+        for carte_id in normales:
+            normale = self.version(carte_id, False)
+            if not version_vide(normale):
+                foil = self.version(carte_id, True)
+                quantite = min(normale["quantite"] + foil["quantite"], 99)
+                fusion = {
+                    "foil": True,
+                    "quantite": quantite,
+                    "a_echanger": min(normale["a_echanger"] + foil["a_echanger"], quantite),
+                    "recherche": normale["recherche"] or foil["recherche"],
+                }
+                supabase_client.enregistrer_versions(self.user_id, carte_id, [version_videe(False), fusion])
+                self.versions[(carte_id, False)] = version_videe(False)
+                self.versions[(carte_id, True)] = fusion
+            supabase_client.supprimer_version(carte_id, False)
+            del self.versions[(carte_id, False)]
 
     def version(self, carte_id, foil):
-        vide = {"foil": foil, "quantite": 0, "a_echanger": 0, "recherche": False}
-        return self.versions.get((carte_id, foil), vide)
+        return self.versions.get((carte_id, foil), version_videe(foil))
 
     def quantite(self, carte_id):
         return self.version(carte_id, False)["quantite"] + self.version(carte_id, True)["quantite"]

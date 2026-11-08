@@ -111,6 +111,7 @@ class FenetrePrincipale(QMainWindow):
         self.telechargement.termine.connect(self.images_terminees)
         self.telechargement.image_prete.connect(self.page_catalogue.grille.image_telechargee)
         self.telechargement.image_prete.connect(self.page_collection.grille.image_telechargee)
+        self.telechargement.image_prete.connect(self.page_catalogue.barre_filtres.icone_telechargee)
         self.page_catalogue.set_affiche.connect(self.telechargement.prioriser)
 
         self.page_reglages.mise_a_jour_demandee.connect(self.mettre_a_jour_catalogue)

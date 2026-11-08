@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from app import theme
+from app.images import ICONES, fichier_icone
 
 STATUTS = [
     ("possedees", "Possédées", "coche"),
@@ -23,21 +24,21 @@ STATUTS = [
 ]
 
 DOMAINES = [
-    ("Fury", "#e5534b"),
-    ("Calm", "#3fb950"),
-    ("Mind", "#4c9be8"),
-    ("Body", "#f0883e"),
-    ("Chaos", "#a371f7"),
-    ("Order", "#e3c06a"),
+    ("Fury", "#e0303a"),
+    ("Calm", "#55a843"),
+    ("Mind", "#2389c9"),
+    ("Body", "#f08a1c"),
+    ("Chaos", "#8b5cc4"),
+    ("Order", "#d8bc2a"),
     ("Colorless", "#8f9bb3"),
 ]
 
 RARETES = [
-    ("Common", "#b0b8c8"),
-    ("Uncommon", "#3fb950"),
-    ("Rare", "#4c9be8"),
-    ("Epic", "#a371f7"),
-    ("Showcase", "#e3c06a"),
+    ("Common", "#a4b8aa"),
+    ("Uncommon", "#41b4b8"),
+    ("Rare", "#c47bb4"),
+    ("Epic", "#d0874f"),
+    ("Showcase", "#d4b445"),
     ("Promo", "#f778ba"),
 ]
 
@@ -64,17 +65,21 @@ def icone_loupe():
     return QIcon(pixmap)
 
 
-def dessiner_gemme(peintre, centre, rayon, couleur, allumee):
+def dessiner_halo(peintre, centre, rayon, couleur):
+    halo = QRadialGradient(centre, rayon)
+    lumiere = QColor(couleur)
+    lumiere.setAlpha(130)
+    halo.setColorAt(0, lumiere)
+    lumiere.setAlpha(0)
+    halo.setColorAt(1, lumiere)
     peintre.setPen(Qt.PenStyle.NoPen)
+    peintre.setBrush(halo)
+    peintre.drawEllipse(centre, rayon, rayon)
+
+
+def dessiner_gemme(peintre, centre, rayon, couleur, allumee):
     if allumee:
-        halo = QRadialGradient(centre, rayon * 2)
-        lumiere = QColor(couleur)
-        lumiere.setAlpha(130)
-        halo.setColorAt(0, lumiere)
-        lumiere.setAlpha(0)
-        halo.setColorAt(1, lumiere)
-        peintre.setBrush(halo)
-        peintre.drawEllipse(centre, rayon * 2, rayon * 2)
+        dessiner_halo(peintre, centre, rayon * 2, couleur)
 
     degrade = QRadialGradient(centre - QPointF(rayon * 0.35, rayon * 0.35), rayon * 1.4)
     degrade.setColorAt(0, couleur.lighter(160))
@@ -131,6 +136,7 @@ class Choix(QAbstractButton):
         self.texte = texte
         self.couleur = QColor(couleur) if couleur else None
         self.symbole = symbole
+        self.icone = None
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         if couleur or symbole:
@@ -168,10 +174,18 @@ class Choix(QAbstractButton):
         zone_texte = QRectF(self.rect())
         if self.couleur or self.symbole:
             centre = QPointF(self.width() / 2, 28)
-            if self.couleur:
-                dessiner_gemme(peintre, centre, 13, self.couleur, self.isChecked())
-            else:
+            if self.symbole:
                 dessiner_symbole(peintre, centre, 14, self.symbole, self.isChecked())
+            elif self.charger_icone():
+                if self.isChecked():
+                    dessiner_halo(peintre, centre, 26, self.couleur)
+                taille = self.icone.deviceIndependentSize().scaled(28, 28, Qt.AspectRatioMode.KeepAspectRatio)
+                cible = QRectF(QPointF(0, 0), taille)
+                cible.moveCenter(centre)
+                peintre.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+                peintre.drawPixmap(cible, self.icone, QRectF(self.icone.rect()))
+            else:
+                dessiner_gemme(peintre, centre, 13, self.couleur, self.isChecked())
             zone_texte = QRectF(0, 48, self.width(), 22)
 
         police = self.font()
@@ -180,6 +194,14 @@ class Choix(QAbstractButton):
         peintre.setFont(police)
         peintre.setPen(QColor(theme.TEXTE if self.isChecked() else theme.TEXTE_DOUX))
         peintre.drawText(zone_texte, Qt.AlignmentFlag.AlignCenter, self.texte)
+
+
+    def charger_icone(self):
+        if self.icone is None and self.texte in ICONES:
+            icone = QPixmap(str(fichier_icone(self.texte)))
+            if not icone.isNull():
+                self.icone = icone
+        return self.icone is not None
 
 
 class BoutonFiltre(QPushButton):
@@ -292,6 +314,12 @@ class BarreFiltres(QWidget):
 
     def texte_modifie(self):
         self.minuteur.start()
+
+    def icone_telechargee(self, cle):
+        if cle in ICONES:
+            for elements in self.groupes.values():
+                for element in elements.values():
+                    element.update()
 
     def changement(self):
         for nom, elements in self.groupes.items():

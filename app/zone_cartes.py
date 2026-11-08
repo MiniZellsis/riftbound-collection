@@ -2,7 +2,8 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
 
-from app import supabase_client, theme
+from app import catalogue, supabase_client, theme
+from app.collection import version_vide
 from app.grille_cartes import ROLE_CARTE_ID, GrilleCartes
 from app.panneau_carte import PanneauCarte
 
@@ -93,30 +94,36 @@ class ZoneCartes(QWidget):
         self.panneau.enregistrer_maintenant()
         normale = self.collection.version(carte_id, False)
         foil = self.collection.version(carte_id, True)
+        carte = catalogue.lire_carte(carte_id)
+        seule_foil = carte is not None and catalogue.toujours_foil(carte) and version_vide(normale)
+        principale = foil if seule_foil else normale
 
         menu = theme.creer_menu(self)
         titre = menu.addAction(element.text())
         titre.setEnabled(False)
         menu.addSeparator()
         ajouter = menu.addAction("Ajouter un exemplaire")
-        ajouter_foil = menu.addAction("Ajouter une foil")
+        ajouter_foil = None if seule_foil else menu.addAction("Ajouter une foil")
         retirer = menu.addAction("Retirer un exemplaire")
-        retirer.setEnabled(normale["quantite"] > 0)
-        retirer_foil = menu.addAction("Retirer une foil")
-        retirer_foil.setEnabled(foil["quantite"] > 0)
+        retirer.setEnabled(principale["quantite"] > 0)
+        retirer_foil = None
+        if not seule_foil:
+            retirer_foil = menu.addAction("Retirer une foil")
+            retirer_foil.setEnabled(foil["quantite"] > 0)
         menu.addSeparator()
         recherchee = menu.addAction("Recherchée")
         recherchee.setCheckable(True)
-        recherchee.setChecked(normale["recherche"])
+        recherchee.setChecked(principale["recherche"])
         doubles = menu.addAction("Doubles à l'échange")
         doubles.setCheckable(True)
-        doubles.setChecked(normale["a_echanger"] > 0)
-        doubles.setEnabled(normale["quantite"] > 1 or normale["a_echanger"] > 0)
+        doubles.setChecked(principale["a_echanger"] > 0)
+        doubles.setEnabled(principale["quantite"] > 1 or principale["a_echanger"] > 0)
         menu.addSeparator()
         detail = menu.addAction("Voir le détail")
         if not self.collection.chargee:
             for action in (ajouter, ajouter_foil, retirer, retirer_foil, recherchee, doubles):
-                action.setEnabled(False)
+                if action is not None:
+                    action.setEnabled(False)
 
         choix = menu.exec(self.grille.viewport().mapToGlobal(position))
         menu.deleteLater()
@@ -126,20 +133,21 @@ class ZoneCartes(QWidget):
             self.ouvrir(carte_id)
             return
 
+        version_choisie = principale["foil"]
         try:
             if choix == ajouter:
-                self.collection.modifier(carte_id, False, quantite=normale["quantite"] + 1)
+                self.collection.modifier(carte_id, version_choisie, quantite=principale["quantite"] + 1)
             elif choix == ajouter_foil:
                 self.collection.modifier(carte_id, True, quantite=foil["quantite"] + 1)
             elif choix == retirer:
-                self.collection.modifier(carte_id, False, quantite=normale["quantite"] - 1)
+                self.collection.modifier(carte_id, version_choisie, quantite=principale["quantite"] - 1)
             elif choix == retirer_foil:
                 self.collection.modifier(carte_id, True, quantite=foil["quantite"] - 1)
             elif choix == recherchee:
-                self.collection.modifier(carte_id, False, recherche=recherchee.isChecked())
+                self.collection.modifier(carte_id, version_choisie, recherche=recherchee.isChecked())
             elif choix == doubles:
-                nombre = normale["quantite"] - 1 if doubles.isChecked() else 0
-                self.collection.modifier(carte_id, False, a_echanger=nombre)
+                nombre = principale["quantite"] - 1 if doubles.isChecked() else 0
+                self.collection.modifier(carte_id, version_choisie, a_echanger=nombre)
         except supabase_client.ErreurSupabase as erreur:
             QMessageBox.warning(self, "Collection", f"Pas enregistré : {erreur}")
             return

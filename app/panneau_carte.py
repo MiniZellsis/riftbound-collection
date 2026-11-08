@@ -13,18 +13,20 @@ from PySide6.QtWidgets import (
 )
 
 from app import catalogue, supabase_client, theme
-from app.barre_filtres import DOMAINES
+from app.barre_filtres import DOMAINES, RARETES
+from app.collection import version_vide
 from app.image_carte import ImageCarte
 from app.images import (
     DELAI_MAX,
     LARGEUR_GRANDE,
     arrondir,
     fichier_grand,
+    fichier_icone,
     fichier_miniature,
     url_redimensionnee,
 )
 
-COULEURS_DOMAINES = dict(DOMAINES)
+COULEURS = dict(DOMAINES + RARETES)
 DELAI_SAUVEGARDE = 700
 
 
@@ -77,9 +79,11 @@ class PanneauCarte(QFrame):
         self.setFixedWidth(360)
         self.collection = collection
         self.carte = None
+        self.seule_foil = False
         self.versions = {}
         self.compteurs = {}
         self.cases = {}
+        self.lignes = {}
         self.reseau = QNetworkAccessManager(self)
         self.reponse = None
 
@@ -121,6 +125,10 @@ class PanneauCarte(QFrame):
         self.creer_ligne(tableau, 1, False, "Normale")
         self.creer_ligne(tableau, 2, True, "Foil")
 
+        self.info_foil = QLabel("Cette carte n'existe qu'en foil.")
+        self.info_foil.setObjectName("sous_titre")
+        self.info_foil.hide()
+
         self.message = QLabel("")
         self.message.setObjectName("erreur")
         self.message.setWordWrap(True)
@@ -141,6 +149,7 @@ class PanneauCarte(QFrame):
         layout.addSpacing(10)
         layout.addLayout(ligne_section)
         layout.addLayout(tableau)
+        layout.addWidget(self.info_foil)
         layout.addWidget(self.message)
         layout.addSpacing(8)
         layout.addWidget(self.bouton_prix)
@@ -163,18 +172,21 @@ class PanneauCarte(QFrame):
         a_echanger.change.connect(lambda valeur: self.changer(foil, "a_echanger", valeur))
         recherche.toggled.connect(lambda coche: self.changer(foil, "recherche", coche))
 
-        tableau.addWidget(QLabel(texte), ligne, 0)
+        libelle = QLabel(texte)
+        tableau.addWidget(libelle, ligne, 0)
         tableau.addWidget(quantite, ligne, 1)
         tableau.addWidget(a_echanger, ligne, 2)
         tableau.addWidget(recherche, ligne, 3, alignment=Qt.AlignmentFlag.AlignCenter)
         self.compteurs[foil] = (quantite, a_echanger)
         self.cases[foil] = recherche
+        self.lignes[foil] = (libelle, quantite, a_echanger, recherche)
 
     def afficher(self, carte_id):
         if self.carte is not None and self.carte["carte_id"] == carte_id:
             return
         self.enregistrer_maintenant()
         self.carte = catalogue.lire_carte(carte_id)
+        self.seule_foil = catalogue.toujours_foil(self.carte)
         self.nom.setText(self.carte["nom"])
         self.details.setText(self.texte_details())
         self.version.setText(self.texte_version())
@@ -187,13 +199,22 @@ class PanneauCarte(QFrame):
 
     def texte_details(self):
         carte = self.carte
-        morceaux = [carte["set_nom"] or "-", f"n°{carte['numero']}", carte["rarete"] or "-", carte["type"] or "-"]
-        domaines = []
-        for domaine in (carte["domaines"] or "").split(", "):
-            if domaine:
-                couleur = COULEURS_DOMAINES.get(domaine, theme.TEXTE_DOUX)
-                domaines.append(f'<span style="color:{couleur}">●</span> {domaine}')
+        morceaux = [
+            carte["set_nom"] or "-",
+            f"n°{carte['numero']}",
+            self.avec_icone(carte["rarete"] or "-"),
+            carte["type"] or "-",
+        ]
+        domaines = [self.avec_icone(domaine) for domaine in (carte["domaines"] or "").split(", ") if domaine]
         return " · ".join(morceaux) + "<br>" + "&nbsp;&nbsp;&nbsp;".join(domaines)
+
+    def avec_icone(self, nom):
+        fichier = fichier_icone(nom)
+        if fichier.exists():
+            adresse = QUrl.fromLocalFile(fichier.as_posix()).toString()
+            return f'<img src="{adresse}" height="16" style="vertical-align: middle"> {nom}'
+        couleur = COULEURS.get(nom, theme.TEXTE_DOUX)
+        return f'<span style="color:{couleur}">●</span> {nom}'
 
     def texte_version(self):
         versions = []
@@ -213,6 +234,10 @@ class PanneauCarte(QFrame):
             False: dict(self.collection.version(carte_id, False)),
             True: dict(self.collection.version(carte_id, True)),
         }
+        normale_visible = not self.seule_foil or not version_vide(self.versions[False])
+        for widget in self.lignes[False]:
+            widget.setVisible(normale_visible)
+        self.info_foil.setVisible(self.seule_foil)
         self.afficher_valeurs()
         if not self.collection.chargee:
             self.message.setText("Collection indisponible : vérifie ta connexion, puis reconnecte-toi.")
@@ -229,6 +254,7 @@ class PanneauCarte(QFrame):
             case.blockSignals(False)
             for controle in (quantite, a_echanger, case):
                 controle.setEnabled(self.collection.chargee)
+        self.image.definir_foil(self.seule_foil or self.versions[True]["quantite"] > 0)
 
     def changer(self, foil, champ, valeur):
         version = self.versions[foil]

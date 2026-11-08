@@ -8,8 +8,11 @@ DOSSIER_DONNEES = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Riftbound
 CHEMIN_BASE = DOSSIER_DONNEES / "catalogue.db"
 DOSSIER_IMAGES = DOSSIER_DONNEES / "images"
 DOSSIER_MINIATURES = DOSSIER_DONNEES / "miniatures"
+DOSSIER_ICONES = DOSSIER_DONNEES / "icones"
 
 CODE_SIMPLE = re.compile(r"[a-z]+-(\d+)-(\d+)")
+RARETES_TOUJOURS_FOIL = ("Rare", "Epic", "Showcase")
+SETS_SANS_FOIL = ("OGS",)
 
 
 @contextmanager
@@ -26,6 +29,7 @@ def ouvrir_base():
 def creer_base():
     DOSSIER_IMAGES.mkdir(parents=True, exist_ok=True)
     DOSSIER_MINIATURES.mkdir(parents=True, exist_ok=True)
+    DOSSIER_ICONES.mkdir(parents=True, exist_ok=True)
     with ouvrir_base() as base:
         base.execute("""
             create table if not exists cartes (
@@ -117,6 +121,16 @@ def lire_carte(carte_id):
         return base.execute(
             "select * from cartes where carte_id = :carte_id", {"carte_id": carte_id}
         ).fetchone()
+
+
+def toujours_foil(carte):
+    return carte["rarete"] in RARETES_TOUJOURS_FOIL and carte["set_code"] not in SETS_SANS_FOIL
+
+
+def cartes_toujours_foil():
+    with ouvrir_base() as base:
+        lignes = base.execute("select carte_id, rarete, set_code from cartes").fetchall()
+    return {ligne["carte_id"] for ligne in lignes if toujours_foil(ligne)}
 
 
 def est_de_base(code):
