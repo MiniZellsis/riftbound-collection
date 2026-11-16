@@ -4,15 +4,24 @@ import httpx
 import keyring
 from dotenv import load_dotenv
 from postgrest import ReturnMethod
-from supabase import AuthApiError, AuthError, PostgrestAPIError, create_client
+from supabase import AuthApiError, AuthError, ClientOptions, PostgrestAPIError, create_client
 
-load_dotenv()
-_client = create_client(
-    os.environ["SUPABASE_URL"],
-    os.environ["SUPABASE_PUBLISHABLE_KEY"],
-)
+from app.infos import DOSSIER_APPLI
+
+load_dotenv(DOSSIER_APPLI / ".env")
+URL = os.environ.get("SUPABASE_URL", "")
+CLE = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "")
+DELAI_MAX = 15
+
+_client = None
+if URL and CLE:
+    _client = create_client(URL, CLE, options=ClientOptions(postgrest_client_timeout=DELAI_MAX))
 
 MESSAGE_RESEAU = "Impossible de joindre le serveur. Vérifie ta connexion Internet."
+MESSAGE_REGLAGES = (
+    "Les réglages du serveur sont introuvables (fichier .env). "
+    "Réinstalle l'appli, ou ajoute le fichier .env à côté de main.py."
+)
 LIGNES_PAR_PAGE = 1000
 SERVICE_COFFRE = "RiftboundCollection"
 NOM_JETON = "refresh_token"
@@ -50,7 +59,13 @@ def _session_modifiee(evenement, session):
         _sauver_jeton(session.refresh_token)
 
 
-_client.auth.on_auth_state_change(_session_modifiee)
+if _client is not None:
+    _client.auth.on_auth_state_change(_session_modifiee)
+
+
+def _verifier_reglages():
+    if _client is None:
+        raise ErreurSupabase(MESSAGE_REGLAGES)
 
 
 def _executer(requete):
@@ -66,6 +81,7 @@ def _executer(requete):
 
 def se_connecter(email, mot_de_passe, rester_connecte):
     global _rester_connecte
+    _verifier_reglages()
     _rester_connecte = rester_connecte
     if not rester_connecte:
         _oublier_jeton()
@@ -87,6 +103,7 @@ def se_connecter(email, mot_de_passe, rester_connecte):
 
 def reprendre_session():
     global _rester_connecte
+    _verifier_reglages()
     jeton = _lire_jeton()
     if not jeton:
         return None

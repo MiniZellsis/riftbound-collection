@@ -1,3 +1,4 @@
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from app import catalogue
@@ -12,13 +13,17 @@ TUILES = [
     ("recherchees", "recherchées"),
 ]
 
-MESSAGE_VIDE = (
-    "Ta collection est vide pour l'instant. Va dans le catalogue, clique sur une carte "
-    "et indique combien tu en as. Le clic droit permet aussi d'en ajouter une vite."
+VIDE = (
+    "Ta collection est vide pour l'instant",
+    "Va dans le catalogue, clique sur une carte et indique combien tu en as. "
+    "Le clic droit permet aussi d'en ajouter une vite.",
+    "Ouvrir le catalogue",
 )
 
 
 class PageCollection(QWidget):
+    catalogue_demande = Signal()
+
     def __init__(self, collection, parent=None):
         super().__init__(parent)
         self.collection = collection
@@ -49,6 +54,7 @@ class PageCollection(QWidget):
         layout.addWidget(self.zone, stretch=1)
 
         self.zone.collection_modifiee.connect(self.actualiser_chiffres)
+        self.zone.etat_vide.action.connect(self.catalogue_demande)
 
     def creer_tuile(self, cle, legende):
         tuile = QFrame()
@@ -82,7 +88,7 @@ class PageCollection(QWidget):
         self.actualiser_chiffres()
         cartes = [c for c in catalogue.lister_cartes() if self.collection.quantite(c["carte_id"]) > 0]
         self.grille.precharger(cartes)
-        self.zone.afficher(cartes, MESSAGE_VIDE)
+        self.zone.afficher(cartes, VIDE)
 
     def showEvent(self, event):
         super().showEvent(event)

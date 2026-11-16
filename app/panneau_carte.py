@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import catalogue, supabase_client, theme
+from app import catalogue, theme
 from app.barre_filtres import DOMAINES, RARETES
 from app.collection import version_vide
 from app.image_carte import ImageCarte
@@ -164,6 +164,9 @@ class PanneauCarte(QFrame):
         self.minuteur_etat.setInterval(2500)
         self.minuteur_etat.timeout.connect(self.etat.clear)
 
+        self.collection.envoi_reussi.connect(self.envoi_reussi)
+        self.collection.envoi_echoue.connect(self.envoi_echoue)
+
     def creer_ligne(self, tableau, ligne, foil, texte):
         quantite = Compteur()
         a_echanger = Compteur()
@@ -271,23 +274,29 @@ class PanneauCarte(QFrame):
 
     def enregistrer(self):
         carte_id = self.carte["carte_id"]
-        versions = [self.versions[False], self.versions[True]]
-        if versions == [self.collection.version(carte_id, False), self.collection.version(carte_id, True)]:
-            return
-        self.etat.setText("Enregistrement…")
-        self.etat.repaint()
-        try:
-            self.collection.enregistrer(carte_id, versions)
-        except supabase_client.ErreurSupabase as erreur:
-            self.etat.clear()
-            self.message.setText(f"Pas enregistré : {erreur}")
-            self.message.show()
-            self.recharger()
+        if not self.collection.enregistrer(carte_id, [self.versions[False], self.versions[True]]):
             return
         self.message.hide()
-        self.etat.setText("✓ Enregistré")
-        self.minuteur_etat.start()
+        self.minuteur_etat.stop()
+        self.etat.setText("Enregistrement…")
         self.modifiee.emit(carte_id)
+
+    def montre(self, carte_id):
+        return self.carte is not None and self.carte["carte_id"] == carte_id
+
+    def envoi_reussi(self, carte_id):
+        if self.montre(carte_id) and self.etat.text() == "Enregistrement…":
+            self.etat.setText("✓ Enregistré")
+            self.minuteur_etat.start()
+
+    def envoi_echoue(self, carte_id, erreur):
+        if not self.montre(carte_id):
+            return
+        self.etat.clear()
+        self.message.setText(f"Pas enregistré : {erreur}")
+        self.message.show()
+        if not self.minuteur.isActive():
+            self.recharger()
 
     def ouvrir_tcgplayer(self):
         url = f"https://www.tcgplayer.com/product/{self.carte['tcgplayer_id']}"

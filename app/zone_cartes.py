@@ -1,11 +1,72 @@
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QKeySequence, QPainter, QPen, QPixmap, QShortcut
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from app import catalogue, supabase_client, theme
+from app import catalogue, theme
 from app.collection import version_vide
 from app.grille_cartes import ROLE_CARTE_ID, GrilleCartes
 from app.panneau_carte import PanneauCarte
+
+
+def dessin_vide(loupe):
+    pixmap = QPixmap(192, 192)
+    pixmap.setDevicePixelRatio(2)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    peintre = QPainter(pixmap)
+    peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
+    stylo = QPen(QColor(theme.TEXTE_ETEINT), 2, Qt.PenStyle.DashLine)
+    stylo.setCapStyle(Qt.PenCapStyle.RoundCap)
+    peintre.setPen(stylo)
+    peintre.drawRoundedRect(QRectF(24, 12, 48, 68), 6, 6)
+    if loupe:
+        peintre.setPen(QPen(QColor(theme.OR), 3.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        peintre.setBrush(QColor(theme.FOND))
+        peintre.drawEllipse(QPointF(62, 60), 14, 14)
+        peintre.drawLine(QPointF(72, 70), QPointF(84, 82))
+    peintre.end()
+    return pixmap
+
+
+class EtatVide(QWidget):
+    action = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.dessin = QLabel()
+        self.dessin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.titre = QLabel("")
+        self.titre.setObjectName("titre_vide")
+        self.titre.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.texte = QLabel("")
+        self.texte.setObjectName("sous_titre")
+        self.texte.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.texte.setWordWrap(True)
+        self.texte.setFixedWidth(440)
+        self.bouton = QPushButton("")
+        self.bouton.setObjectName("principal")
+        self.bouton.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.bouton.clicked.connect(self.action)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.addStretch(2)
+        layout.addWidget(self.dessin)
+        layout.addWidget(self.titre)
+        layout.addWidget(self.texte, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addSpacing(6)
+        layout.addWidget(self.bouton, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addStretch(3)
+
+    def definir(self, titre, texte="", bouton="", loupe=False):
+        self.dessin.setPixmap(dessin_vide(loupe))
+        self.titre.setText(titre)
+        self.texte.setText(texte)
+        hauteur = self.texte.heightForWidth(self.texte.width())
+        if hauteur > 0:
+            self.texte.setFixedHeight(hauteur)
+        self.texte.setVisible(bool(texte))
+        self.bouton.setText(bouton)
+        self.bouton.setVisible(bool(bouton))
 
 
 class ZoneCartes(QWidget):
@@ -18,14 +79,11 @@ class ZoneCartes(QWidget):
         self.panneau = PanneauCarte(collection)
         self.panneau.hide()
 
-        self.message = QLabel("")
-        self.message.setObjectName("sous_titre")
-        self.message.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.message.setWordWrap(True)
-        self.message.hide()
+        self.etat_vide = EtatVide()
+        self.etat_vide.hide()
 
         gauche = QVBoxLayout()
-        gauche.addWidget(self.message, stretch=1)
+        gauche.addWidget(self.etat_vide, stretch=1)
         gauche.addWidget(self.grille, stretch=1)
 
         layout = QHBoxLayout(self)
@@ -46,11 +104,17 @@ class ZoneCartes(QWidget):
         raccourci.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         raccourci.activated.connect(self.fermer_panneau)
 
-    def afficher(self, cartes, message):
+        self.collection.envoi_echoue.connect(self.envoi_echoue)
+
+    def afficher(self, cartes, vide):
         self.grille.afficher(cartes)
-        self.message.setText(message)
-        self.message.setVisible(not cartes)
+        self.etat_vide.definir(*vide)
+        self.etat_vide.setVisible(not cartes)
         self.grille.setVisible(bool(cartes))
+
+    def envoi_echoue(self, carte_id, erreur):
+        self.grille.rafraichir()
+        self.collection_modifiee.emit()
 
     def element_clique(self, element):
         self.ouvrir(element.data(ROLE_CARTE_ID))
@@ -134,22 +198,18 @@ class ZoneCartes(QWidget):
             return
 
         version_choisie = principale["foil"]
-        try:
-            if choix == ajouter:
-                self.collection.modifier(carte_id, version_choisie, quantite=principale["quantite"] + 1)
-            elif choix == ajouter_foil:
-                self.collection.modifier(carte_id, True, quantite=foil["quantite"] + 1)
-            elif choix == retirer:
-                self.collection.modifier(carte_id, version_choisie, quantite=principale["quantite"] - 1)
-            elif choix == retirer_foil:
-                self.collection.modifier(carte_id, True, quantite=foil["quantite"] - 1)
-            elif choix == recherchee:
-                self.collection.modifier(carte_id, version_choisie, recherche=recherchee.isChecked())
-            elif choix == doubles:
-                nombre = principale["quantite"] - 1 if doubles.isChecked() else 0
-                self.collection.modifier(carte_id, version_choisie, a_echanger=nombre)
-        except supabase_client.ErreurSupabase as erreur:
-            QMessageBox.warning(self, "Collection", f"Pas enregistré : {erreur}")
-            return
+        if choix == ajouter:
+            self.collection.modifier(carte_id, version_choisie, quantite=principale["quantite"] + 1)
+        elif choix == ajouter_foil:
+            self.collection.modifier(carte_id, True, quantite=foil["quantite"] + 1)
+        elif choix == retirer:
+            self.collection.modifier(carte_id, version_choisie, quantite=principale["quantite"] - 1)
+        elif choix == retirer_foil:
+            self.collection.modifier(carte_id, True, quantite=foil["quantite"] - 1)
+        elif choix == recherchee:
+            self.collection.modifier(carte_id, version_choisie, recherche=recherchee.isChecked())
+        elif choix == doubles:
+            nombre = principale["quantite"] - 1 if doubles.isChecked() else 0
+            self.collection.modifier(carte_id, version_choisie, a_echanger=nombre)
         self.panneau.recharger()
         self.carte_modifiee(carte_id)

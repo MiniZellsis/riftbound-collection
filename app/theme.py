@@ -41,6 +41,21 @@ QLabel#titre {{
 QLabel#sous_titre {{
     color: {TEXTE_DOUX};
 }}
+QLabel#titre_vide {{
+    font-size: 17px;
+    font-weight: bold;
+}}
+QLabel#touche {{
+    background: {SURFACE_HAUTE};
+    border: 1px solid {BORDURE};
+    border-radius: 4px;
+    color: {OR_CLAIR};
+    padding: 2px 8px;
+}}
+QFrame#bandeau {{
+    background: {SURFACE_HAUTE};
+    border-bottom: 1px solid {OR};
+}}
 QLabel#erreur {{
     color: {ROUGE};
 }}

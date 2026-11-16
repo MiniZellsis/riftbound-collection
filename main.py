@@ -1,20 +1,33 @@
+import ctypes
 import sys
-import traceback
 
-from PySide6.QtNetwork import QNetworkProxyFactory
+from PySide6.QtGui import QIcon
+from PySide6.QtNetwork import QNetworkProxyFactory, QSslConfiguration
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from app import catalogue, supabase_client, theme
+from app import catalogue, journal, supabase_client, theme
 from app.fenetre_connexion import FenetreConnexion
 from app.fenetre_principale import FenetrePrincipale
+from app.infos import ICONE, ID_WINDOWS, VERSION
 
 
 def afficher_erreur(type_erreur, erreur, trace):
-    details = "".join(traceback.format_exception(type_erreur, erreur, trace))
+    details = journal.noter_erreur(type_erreur, erreur, trace)
     print(details, file=sys.stderr)
-    boite = QMessageBox(QMessageBox.Icon.Critical, "Erreur inattendue", f"{type_erreur.__name__} : {erreur}")
+    boite = QMessageBox(
+        QMessageBox.Icon.Critical,
+        "Erreur inattendue",
+        f"{type_erreur.__name__} : {erreur}\n\n"
+        f"Les détails sont enregistrés dans le fichier {journal.FICHIER.name} : "
+        "page Réglages, bouton « Ouvrir le dossier ».",
+    )
     boite.setDetailedText(details)
     boite.exec()
+
+
+def preparer_windows():
+    if sys.platform == "win32":
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(ID_WINDOWS)
 
 
 class Application:
@@ -47,12 +60,16 @@ class Application:
 
 
 if __name__ == "__main__":
+    preparer_windows()
     catalogue.creer_base()
     qt_app = QApplication(sys.argv)
     qt_app.setOrganizationName("RiftboundCollection")
     qt_app.setApplicationName("RiftboundCollection")
+    qt_app.setApplicationVersion(VERSION)
+    qt_app.setWindowIcon(QIcon(str(ICONE)))
     theme.appliquer_theme(qt_app)
     sys.excepthook = afficher_erreur
     QNetworkProxyFactory.setUseSystemConfiguration(True)
+    QSslConfiguration.defaultConfiguration().caCertificates()
     application = Application()
     sys.exit(qt_app.exec())

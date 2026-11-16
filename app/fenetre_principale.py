@@ -1,6 +1,8 @@
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QSettings, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -16,11 +18,49 @@ from app import catalogue, supabase_client
 from app.collection import Collection
 from app.images import TelechargementImages
 from app.import_catalogue import ImportCatalogue
+from app.infos import NOM
+from app.mises_a_jour import VerificationMiseAJour
 from app.page_catalogue import PageCatalogue
 from app.page_collection import PageCollection
 from app.page_echanges import PageEchanges
 from app.page_progression import PageProgression
 from app.page_reglages import PageReglages
+
+PAGES = ["Catalogue", "Ma collection", "Échanges", "Progression", "Réglages"]
+DELAI_VERIFICATION = 3000
+
+
+class BandeauMiseAJour(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("bandeau")
+        self.page = ""
+        self.texte = QLabel("")
+        bouton = QPushButton("Télécharger")
+        bouton.setObjectName("principal")
+        bouton.setCursor(Qt.CursorShape.PointingHandCursor)
+        bouton.clicked.connect(self.telecharger)
+        fermer = QPushButton("×")
+        fermer.setObjectName("fermer")
+        fermer.setCursor(Qt.CursorShape.PointingHandCursor)
+        fermer.setToolTip("Masquer")
+        fermer.clicked.connect(self.hide)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(24, 8, 16, 8)
+        layout.addWidget(self.texte)
+        layout.addStretch()
+        layout.addWidget(bouton)
+        layout.addWidget(fermer)
+        self.hide()
+
+    def afficher(self, version, page):
+        self.page = page
+        self.texte.setText(f"✦  La version {version} de {NOM} est disponible.")
+        self.show()
+
+    def telecharger(self):
+        QDesktopServices.openUrl(QUrl(self.page))
 
 
 class FenetrePrincipale(QMainWindow):
@@ -28,8 +68,10 @@ class FenetrePrincipale(QMainWindow):
 
     def __init__(self, user_id):
         super().__init__()
-        self.setWindowTitle("Riftbound Collection")
-        self.resize(1280, 800)
+        self.setWindowTitle(NOM)
+        geometrie = QSettings().value("fenetre_principale")
+        if geometrie is None or not self.restoreGeometry(geometrie):
+            self.resize(1280, 800)
 
         self.collection = Collection(user_id)
         self.pseudo = None
@@ -84,13 +126,28 @@ class FenetrePrincipale(QMainWindow):
         self.groupe_menu.idClicked.connect(self.pages.setCurrentIndex)
         self.boutons["Catalogue"].setChecked(True)
 
+        self.bandeau = BandeauMiseAJour()
+        droite = QVBoxLayout()
+        droite.setContentsMargins(0, 0, 0, 0)
+        droite.setSpacing(0)
+        droite.addWidget(self.bandeau)
+        droite.addWidget(self.pages, stretch=1)
+
         zone_centrale = QWidget()
         layout = QHBoxLayout(zone_centrale)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(barre)
-        layout.addWidget(self.pages, stretch=1)
+        layout.addLayout(droite, stretch=1)
         self.setCentralWidget(zone_centrale)
+
+        for numero, texte in enumerate(PAGES, start=1):
+            self.boutons[texte].setToolTip(f"Ctrl+{numero}")
+            raccourci = QShortcut(QKeySequence(f"Ctrl+{numero}"), self)
+            raccourci.activated.connect(lambda texte=texte: self.aller_a(texte))
+        recherche = QShortcut(QKeySequence.StandardKey.Find, self)
+        recherche.activated.connect(self.chercher)
+        self.page_catalogue.barre_filtres.recherche.setToolTip("Ctrl+F")
 
         self.barre_progression = QProgressBar()
         self.barre_progression.setMaximumWidth(250)
@@ -115,7 +172,14 @@ class FenetrePrincipale(QMainWindow):
         self.page_catalogue.set_affiche.connect(self.telechargement.prioriser)
 
         self.page_reglages.mise_a_jour_demandee.connect(self.mettre_a_jour_catalogue)
+        self.page_collection.catalogue_demande.connect(lambda: self.aller_a("Catalogue"))
         bouton_deconnexion.clicked.connect(self.se_deconnecter)
+        self.collection.envoi_echoue.connect(self.envoi_echoue)
+
+        self.verification = VerificationMiseAJour(self)
+        self.verification.resultat.connect(self.verification_terminee)
+        self.page_reglages.verification_demandee.connect(self.verification.verifier)
+        QTimer.singleShot(DELAI_VERIFICATION, self.verification.verifier)
 
         if catalogue.nombre_cartes() == 0:
             self.mettre_a_jour_catalogue()
@@ -132,9 +196,40 @@ class FenetrePrincipale(QMainWindow):
         self.boutons[texte] = bouton
         return bouton
 
+    def aller_a(self, texte):
+        bouton = self.boutons[texte]
+        if bouton.isEnabled():
+            bouton.click()
+
+    def chercher(self):
+        self.aller_a("Catalogue")
+        recherche = self.page_catalogue.barre_filtres.recherche
+        recherche.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        recherche.selectAll()
+
+    def verification_terminee(self, etat, version, page):
+        self.page_reglages.afficher_verification(etat, version, page)
+        if etat == "nouvelle":
+            self.bandeau.afficher(version, page)
+
+    def envoi_echoue(self, carte_id, erreur):
+        carte = catalogue.lire_carte(carte_id)
+        nom = carte["nom"] if carte is not None else carte_id
+        self.statusBar().showMessage(f"⚠ {nom} : pas enregistré. {erreur}", 15000)
+
     def enregistrer_en_attente(self):
         self.page_catalogue.zone.enregistrer_maintenant()
         self.page_collection.zone.enregistrer_maintenant()
+
+    def terminer_envois(self):
+        self.enregistrer_en_attente()
+        if not self.collection.attendre_envois():
+            QMessageBox.warning(
+                self,
+                "Collection",
+                "Certains changements n'ont pas pu être enregistrés. Vérifie ta connexion Internet.",
+            )
+        self.collection.arreter()
 
     def preparer_catalogue(self):
         nombre = self.telechargement.demarrer(catalogue.lister_cartes())
@@ -188,12 +283,13 @@ class FenetrePrincipale(QMainWindow):
         self.preparer_catalogue()
 
     def se_deconnecter(self):
-        self.enregistrer_en_attente()
+        self.terminer_envois()
         supabase_client.se_deconnecter()
         self.deconnexion.emit()
 
     def closeEvent(self, event):
-        self.enregistrer_en_attente()
+        self.terminer_envois()
+        QSettings().setValue("fenetre_principale", self.saveGeometry())
         self.import_catalogue.arreter()
         self.telechargement.arreter()
         super().closeEvent(event)

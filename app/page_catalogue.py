@@ -53,7 +53,7 @@ class PageCatalogue(QWidget):
         layout_haut.addLayout(ligne_progression)
         layout_haut.addWidget(self.barre_filtres)
         self.haut.hide()
-        self.zone.afficher([], "Chargement du catalogue...")
+        self.zone.afficher([], ("Chargement du catalogue…",))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 16, 24, 12)
@@ -65,6 +65,7 @@ class PageCatalogue(QWidget):
         self.onglets.currentChanged.connect(self.changer_set)
         self.barre_filtres.filtres_changes.connect(self.afficher_cartes)
         self.zone.collection_modifiee.connect(self.actualiser_progression)
+        self.zone.etat_vide.action.connect(self.barre_filtres.effacer)
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -139,13 +140,15 @@ class PageCatalogue(QWidget):
         self.actualiser_progression()
 
         if not self.sets:
-            message = "Le catalogue est vide. Mets-le à jour depuis la page Réglages."
+            vide = ("Le catalogue est vide", "Mets-le à jour depuis la page Réglages.")
         else:
-            message = (
-                "Aucune carte de ce set ne correspond à tes filtres.\n"
-                "Les nombres entre parenthèses, dans les onglets, montrent où en trouver."
+            vide = (
+                "Aucune carte ne correspond à tes filtres",
+                "Les nombres entre parenthèses, dans les onglets, montrent les sets où il y en a.",
+                "Effacer les filtres",
+                True,
             )
-        self.zone.afficher(cartes, message)
+        self.zone.afficher(cartes, vide)
         self.haut.setVisible(bool(self.sets))
 
     def actualiser_progression(self):
