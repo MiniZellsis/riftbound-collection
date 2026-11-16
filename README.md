@@ -1,34 +1,63 @@
 # Riftbound Collection
 
-Logiciel Windows pour gérer sa collection de cartes Riftbound.
+Riftbound Collection est un logiciel gratuit pour Windows qui sert à gérer ta collection de cartes **Riftbound**.
 
-- Interface : PySide6 (Qt)
-- Comptes et collection en ligne : Supabase
-- Données des cartes : API Riftcodex
+- Parcours tout le catalogue, set par set, avec les images des cartes.
+- Note combien d'exemplaires tu as de chaque carte, en version normale ou foil.
+- Retrouve vite une carte grâce à la recherche et aux filtres (domaine, rareté, type).
+- Suis ta progression dans chaque set.
+- Indique tes doubles et les cartes que tu cherches, pour trouver des échanges avec les autres joueurs.
 
-## Lancer depuis le code
+Ta collection est enregistrée en ligne : tu la retrouves sur n'importe quel PC où tu te connectes.
 
-1. `pip install -r requirements.txt`
-2. Mettre un fichier `.env` à côté de `main.py`, avec `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY`.
-3. `python main.py`
+## Installer
 
-## Fabriquer l'installateur (Windows)
+1. Va sur la page des [versions](https://github.com/MiniZellsis/riftbound-collection/releases/latest).
+2. Télécharge le fichier `RiftboundCollection-Setup-….exe`.
+3. Lance-le et suis les étapes. Pas besoin d'être administrateur du PC.
 
-1. Installer Inno Setup 6.3 ou plus récent : https://jrsoftware.org/isdl.php
-2. `pip install -r requirements-construction.txt`
-3. `python construire.py`
+Au premier lancement, Windows peut afficher « Windows a protégé votre ordinateur ». C'est normal pour un petit logiciel indépendant : clique sur « Informations complémentaires », puis sur « Exécuter quand même ».
 
-Résultat :
+## Premier lancement
 
-- `dist/RiftboundCollection/` : l'appli prête à lancer ;
-- `dist/RiftboundCollection-Setup-<version>.exe` : l'installateur à partager.
+- Un compte est nécessaire pour se connecter. Pour en avoir un, contacte l'auteur depuis l'onglet [Issues](https://github.com/MiniZellsis/riftbound-collection/issues) du projet.
+- Coche « Rester connecté » pour ne pas retaper ton mot de passe à chaque fois.
+- La première fois, le logiciel télécharge le catalogue et les images des cartes. Ça peut prendre quelques minutes, ensuite tout est gardé sur ton PC.
 
-Le script refuse de continuer si le `.env` contient une clé secrète. Seules `SUPABASE_URL` et la clé publique `SUPABASE_PUBLISHABLE_KEY` sont mises dans l'appli.
+## Utilisation
 
-## Publier une nouvelle version
+- **Clic sur une carte :** ouvre son détail à droite. Tu peux y indiquer combien tu en as, combien sont à échanger, et si tu la recherches. Tout est enregistré tout seul.
+- **Clic droit sur une carte :** ajoute ou retire un exemplaire en un clic.
+- **Curseur en haut à droite :** change la taille des cartes.
+- Les cartes que tu n'as pas sont affichées en pâle.
+- Les cartes Rare, Epic et Showcase n'existent qu'en foil : elles sont comptées en foil automatiquement.
 
-1. Changer `VERSION` dans `app/infos.py` (par exemple `1.0.1`).
-2. `python construire.py`
-3. Sur GitHub : Releases, puis « Draft a new release », tag `v1.0.1`, et joindre l'installateur.
+### Raccourcis clavier
 
-Au démarrage, l'appli compare sa version avec la dernière release du dépôt et propose le téléchargement s'il y en a une plus récente.
+| Touches | Action |
+|---|---|
+| Ctrl+F | Rechercher une carte |
+| Ctrl+1 à Ctrl+5 | Changer de page |
+| Flèches | Passer d'une carte à l'autre |
+| Échap | Fermer le détail d'une carte |
+
+## Mises à jour
+
+Au démarrage, le logiciel vérifie s'il existe une nouvelle version. Si oui, un bandeau te propose de la télécharger : installe-la par-dessus l'ancienne, ta collection ne bouge pas.
+
+Tu peux aussi vérifier à la main dans **Réglages**, partie **À propos**.
+
+## Un problème ?
+
+- Le catalogue est vide ou incomplet : va dans **Réglages** et clique sur **Mettre à jour le catalogue**.
+- Le logiciel affiche une erreur : les détails sont enregistrés dans le fichier `erreurs.log`. Pour le trouver, va dans **Réglages**, puis **Ouvrir le dossier**. Tu peux joindre ce fichier quand tu signales le problème dans l'onglet [Issues](https://github.com/MiniZellsis/riftbound-collection/issues).
+
+## Désinstaller
+
+Va dans les **Paramètres de Windows**, puis **Applications**, et désinstalle **Riftbound Collection**. Ta collection reste enregistrée en ligne.
+
+## Mentions
+
+Données des cartes : Riftcodex. Images des cartes : Riot Games.
+
+Riftbound Collection n'est pas approuvé par Riot Games et ne reflète pas les opinions de Riot Games ni de quiconque officiellement impliqué dans la production ou la gestion des propriétés de Riot Games. Riot Games et toutes les propriétés associées sont des marques commerciales ou des marques déposées de Riot Games, Inc.
