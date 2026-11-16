@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 NOM = "Riftbound Collection"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 DEPOT = "MiniZellsis/riftbound-collection"
 ID_WINDOWS = "MiniZellsis.RiftboundCollection"
 DOSSIER_APPLI = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))

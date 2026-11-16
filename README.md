@@ -20,7 +20,8 @@ Au premier lancement, Windows peut afficher « Windows a protégé votre ordinat
 
 ## Premier lancement
 
-- Un compte est nécessaire pour se connecter. Pour en avoir un, contacte l'auteur depuis l'onglet [Issues](https://github.com/MiniZellsis/riftbound-collection/issues) du projet.
+- Clique sur **Pas encore de compte ? Créer un compte**. Entre ton adresse e-mail, choisis un pseudo (les autres joueurs le verront) et un mot de passe d'au moins 6 caractères.
+- Si tu reçois un mail de confirmation, clique sur le lien qu'il contient, puis reviens dans le logiciel pour te connecter. Pense à regarder dans tes spams.
 - Coche « Rester connecté » pour ne pas retaper ton mot de passe à chaque fois.
 - La première fois, le logiciel télécharge le catalogue et les images des cartes. Ça peut prendre quelques minutes, ensuite tout est gardé sur ton PC.
 

@@ -40,7 +40,7 @@ class Application:
             user_id = supabase_client.reprendre_session()
         except supabase_client.ErreurSupabase as erreur:
             user_id = None
-            self.fenetre_connexion.message.setText(str(erreur))
+            self.fenetre_connexion.afficher_message(str(erreur))
 
         if user_id:
             self.ouvrir_principale(user_id)

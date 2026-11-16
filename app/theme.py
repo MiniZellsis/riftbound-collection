@@ -59,6 +59,9 @@ QFrame#bandeau {{
 QLabel#erreur {{
     color: {ROUGE};
 }}
+QLabel#succes {{
+    color: {VERT};
+}}
 QLabel#pseudo {{
     color: {TEXTE};
     font-weight: bold;

@@ -22,6 +22,20 @@ MESSAGE_REGLAGES = (
     "Les réglages du serveur sont introuvables (fichier .env). "
     "Réinstalle l'appli, ou ajoute le fichier .env à côté de main.py."
 )
+MESSAGES_INSCRIPTION = {
+    "user_already_exists": "Un compte existe déjà avec cette adresse e-mail. Connecte-toi.",
+    "email_exists": "Un compte existe déjà avec cette adresse e-mail. Connecte-toi.",
+    "weak_password": "Ce mot de passe est trop faible. Choisis-en un plus long, avec des lettres et des chiffres.",
+    "email_address_invalid": "Cette adresse e-mail n'est pas valide.",
+    "validation_failed": "Cette adresse e-mail n'est pas valide.",
+    "signup_disabled": "Les inscriptions sont fermées pour l'instant.",
+    "email_address_not_authorized": (
+        "Le serveur ne peut pas envoyer le mail de confirmation à cette adresse. "
+        "Préviens l'auteur du logiciel."
+    ),
+    "over_email_send_rate_limit": "Trop d'inscriptions en peu de temps. Réessaie dans une heure.",
+    "over_request_rate_limit": "Trop d'essais en peu de temps. Réessaie dans quelques minutes.",
+}
 LIGNES_PAR_PAGE = 1000
 SERVICE_COFFRE = "RiftboundCollection"
 NOM_JETON = "refresh_token"
@@ -98,6 +112,41 @@ def se_connecter(email, mot_de_passe, rester_connecte):
         raise ErreurSupabase(erreur.message)
     except (AuthError, httpx.HTTPError):
         raise ErreurSupabase(MESSAGE_RESEAU)
+    return reponse.user.id
+
+
+def message_inscription(erreur):
+    if erreur.code in MESSAGES_INSCRIPTION:
+        return MESSAGES_INSCRIPTION[erreur.code]
+    if "database error saving new user" in (erreur.message or "").lower():
+        return "Ce pseudo est déjà pris. Choisis-en un autre."
+    if isinstance(erreur, AuthApiError) and 0 < erreur.status < 500:
+        return f"Inscription impossible : {erreur.message}"
+    return MESSAGE_RESEAU
+
+
+def creer_compte(email, pseudo, mot_de_passe, rester_connecte):
+    global _rester_connecte
+    _verifier_reglages()
+    _rester_connecte = rester_connecte
+    if not rester_connecte:
+        _oublier_jeton()
+    try:
+        reponse = _client.auth.sign_up({
+            "email": email,
+            "password": mot_de_passe,
+            "options": {"data": {"pseudo": pseudo}},
+        })
+    except AuthError as erreur:
+        raise ErreurSupabase(message_inscription(erreur))
+    except httpx.HTTPError:
+        raise ErreurSupabase(MESSAGE_RESEAU)
+    if reponse.user is None:
+        raise ErreurSupabase(MESSAGE_RESEAU)
+    if reponse.user.identities == []:
+        raise ErreurSupabase(MESSAGES_INSCRIPTION["user_already_exists"])
+    if reponse.session is None:
+        return None
     return reponse.user.id
 
 
