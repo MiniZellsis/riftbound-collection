@@ -4,9 +4,9 @@ import httpx
 import keyring
 from dotenv import load_dotenv
 from postgrest import ReturnMethod
-from supabase import AuthApiError, AuthError, ClientOptions, PostgrestAPIError, create_client
 
 from app.infos import DOSSIER_APPLI
+from supabase import AuthApiError, AuthError, ClientOptions, PostgrestAPIError, create_client
 
 load_dotenv(DOSSIER_APPLI / ".env")
 URL = os.environ.get("SUPABASE_URL", "")

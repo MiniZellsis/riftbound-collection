@@ -2,10 +2,11 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QKeySequence, QPainter, QPen, QPixmap, QShortcut
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from app import catalogue, theme
-from app.collection import version_vide
-from app.grille_cartes import ROLE_CARTE_ID, GrilleCartes
-from app.panneau_carte import PanneauCarte
+from app.donnees import catalogue
+from app.donnees.collection import version_vide
+from app.interface import theme
+from app.interface.composants.grille_cartes import ROLE_CARTE_ID, GrilleCartes
+from app.interface.composants.panneau_carte import PanneauCarte
 
 
 def dessin_vide(loupe):

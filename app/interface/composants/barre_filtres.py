@@ -13,33 +13,14 @@ from PySide6.QtWidgets import (
     QWidgetAction,
 )
 
-from app import theme
-from app.images import ICONES, fichier_icone
+from app.donnees.images import ICONES, fichier_icone
+from app.interface import theme
 
 STATUTS = [
     ("possedees", "Possédées", "coche"),
     ("manquantes", "Manquantes", "cercle"),
     ("a_echanger", "À échanger", "fleches"),
     ("recherchees", "Recherchées", "etoile"),
-]
-
-DOMAINES = [
-    ("Fury", "#e0303a"),
-    ("Calm", "#55a843"),
-    ("Mind", "#2389c9"),
-    ("Body", "#f08a1c"),
-    ("Chaos", "#8b5cc4"),
-    ("Order", "#d8bc2a"),
-    ("Colorless", "#8f9bb3"),
-]
-
-RARETES = [
-    ("Common", "#a4b8aa"),
-    ("Uncommon", "#41b4b8"),
-    ("Rare", "#c47bb4"),
-    ("Epic", "#d0874f"),
-    ("Showcase", "#d4b445"),
-    ("Promo", "#f778ba"),
 ]
 
 TYPES = ["Unit", "Spell", "Gear", "Legend", "Battlefield", "Rune"]
@@ -252,10 +233,10 @@ class BarreFiltres(QWidget):
             (valeur, Choix(texte, symbole=symbole)) for valeur, texte, symbole in STATUTS
         ]))
         layout.addWidget(self.ajouter_groupe("domaines", "Domaine", [
-            (nom, Choix(nom, couleur=couleur)) for nom, couleur in DOMAINES
+            (nom, Choix(nom, couleur=couleur)) for nom, couleur in theme.DOMAINES
         ]))
         layout.addWidget(self.ajouter_groupe("raretes", "Rareté", [
-            (nom, Choix(nom, couleur=couleur)) for nom, couleur in RARETES
+            (nom, Choix(nom, couleur=couleur)) for nom, couleur in theme.RARETES
         ]))
         layout.addWidget(self.ajouter_groupe("types", "Type", [
             (nom, Choix(nom)) for nom in TYPES

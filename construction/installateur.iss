@@ -7,6 +7,7 @@
 #define IdWindows "MiniZellsis.RiftboundCollection"
 
 [Setup]
+SourceDir=..
 AppId={{E3B8DC2A-BE62-4C13-ADEB-CDBF71B58050}
 AppName={#Nom}
 AppVersion={#Version}

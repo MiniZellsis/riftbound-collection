@@ -2,9 +2,9 @@ from PySide6.QtCore import QRectF, QSizeF, Qt
 from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
-from app import theme
-from app.effets import Inclinaison, dessiner_carte, dessiner_ombre
-from app.images import ARRONDI
+from app.donnees.images import ARRONDI
+from app.interface import theme
+from app.interface.composants.effets import Inclinaison, dessiner_carte, dessiner_ombre
 
 
 class ImageCarte(QWidget):

@@ -3,7 +3,7 @@ import json
 from PySide6.QtCore import QObject, QTimer, QUrl, QUrlQuery, Signal
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 
-from app import catalogue
+from app.donnees import catalogue
 
 URL_API = "https://api.riftcodex.com/cards"
 TAILLE_PAGE = 100 

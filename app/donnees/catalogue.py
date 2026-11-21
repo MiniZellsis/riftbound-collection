@@ -1,14 +1,8 @@
-import os
 import re
 import sqlite3
 from contextlib import contextmanager
-from pathlib import Path
 
-DOSSIER_DONNEES = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "RiftboundCollection"
-CHEMIN_BASE = DOSSIER_DONNEES / "catalogue.db"
-DOSSIER_IMAGES = DOSSIER_DONNEES / "images"
-DOSSIER_MINIATURES = DOSSIER_DONNEES / "miniatures"
-DOSSIER_ICONES = DOSSIER_DONNEES / "icones"
+from app.infos import CHEMIN_BASE, DOSSIER_ICONES, DOSSIER_IMAGES, DOSSIER_MINIATURES
 
 CODE_SIMPLE = re.compile(r"[a-z]+-(\d+)-(\d+)")
 RARETES_TOUJOURS_FOIL = ("Rare", "Epic", "Showcase")

@@ -14,17 +14,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import catalogue, supabase_client
-from app.collection import Collection
-from app.images import TelechargementImages
-from app.import_catalogue import ImportCatalogue
+from app.donnees import catalogue, supabase_client
+from app.donnees.collection import Collection
+from app.donnees.images import TelechargementImages
+from app.donnees.import_catalogue import ImportCatalogue
+from app.donnees.mises_a_jour import VerificationMiseAJour
 from app.infos import NOM
-from app.mises_a_jour import VerificationMiseAJour
-from app.page_catalogue import PageCatalogue
-from app.page_collection import PageCollection
-from app.page_echanges import PageEchanges
-from app.page_progression import PageProgression
-from app.page_reglages import PageReglages
+from app.interface.pages.page_catalogue import PageCatalogue
+from app.interface.pages.page_collection import PageCollection
+from app.interface.pages.page_echanges import PageEchanges
+from app.interface.pages.page_progression import PageProgression
+from app.interface.pages.page_reglages import PageReglages
 
 PAGES = ["Catalogue", "Ma collection", "Échanges", "Progression", "Réglages"]
 DELAI_VERIFICATION = 3000

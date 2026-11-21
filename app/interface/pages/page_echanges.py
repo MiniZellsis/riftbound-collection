@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import catalogue, supabase_client
+from app.donnees import catalogue, supabase_client
 
 
 class PageEchanges(QWidget):

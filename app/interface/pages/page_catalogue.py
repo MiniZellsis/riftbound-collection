@@ -1,10 +1,10 @@
 from PySide6.QtCore import QSettings, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QTabBar, QVBoxLayout, QWidget
 
-from app import catalogue
-from app.barre_filtres import BarreFiltres
-from app.grille_cartes import ReglageTaille
-from app.zone_cartes import ZoneCartes
+from app.donnees import catalogue
+from app.interface.composants.barre_filtres import BarreFiltres
+from app.interface.composants.grille_cartes import ReglageTaille
+from app.interface.composants.zone_cartes import ZoneCartes
 
 NOM_PROMOS = "Promos"
 

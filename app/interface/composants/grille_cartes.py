@@ -15,8 +15,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import theme
-from app.effets import (
+from app.donnees.images import ARRONDI, charger_miniature
+from app.interface import theme
+from app.interface.composants.effets import (
     Inclinaison,
     ajouter_effets,
     arc_en_ciel,
@@ -25,7 +26,6 @@ from app.effets import (
     dessiner_ombre,
     incliner,
 )
-from app.images import ARRONDI, charger_miniature
 
 LARGEUR_MIN = 120
 LARGEUR_MAX = 280

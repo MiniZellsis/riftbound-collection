@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, QRectF, Qt, QUrl, QUrlQuery, Signal
 from PySide6.QtGui import QBrush, QImage, QPainter
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 
-from app.catalogue import DOSSIER_ICONES, DOSSIER_IMAGES, DOSSIER_MINIATURES
+from app.infos import DOSSIER_ICONES, DOSSIER_IMAGES, DOSSIER_MINIATURES
 
 LARGEUR_MINIATURE = 300
 LARGEUR_GRANDE = 744

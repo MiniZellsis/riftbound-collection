@@ -15,6 +15,25 @@ OR_CLAIR = "#e3c06a"
 ROUGE = "#e5534b"
 VERT = "#3fb950"
 
+DOMAINES = [
+    ("Fury", "#e0303a"),
+    ("Calm", "#55a843"),
+    ("Mind", "#2389c9"),
+    ("Body", "#f08a1c"),
+    ("Chaos", "#8b5cc4"),
+    ("Order", "#d8bc2a"),
+    ("Colorless", "#8f9bb3"),
+]
+
+RARETES = [
+    ("Common", "#a4b8aa"),
+    ("Uncommon", "#41b4b8"),
+    ("Rare", "#c47bb4"),
+    ("Epic", "#d0874f"),
+    ("Showcase", "#d4b445"),
+    ("Promo", "#f778ba"),
+]
+
 STYLE = f"""
 QWidget {{
     color: {TEXTE};

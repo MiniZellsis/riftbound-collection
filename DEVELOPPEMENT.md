@@ -4,21 +4,47 @@
 - Comptes et collection en ligne : Supabase
 - Données des cartes : API Riftcodex
 
+## Organisation du projet
+
+```
+main.py                    point de départ de l'appli
+app/
+├── infos.py               nom, version, dépôt GitHub, emplacement des dossiers
+├── journal.py             fichier erreurs.log
+├── donnees/               tout ce qui lit, télécharge ou enregistre (rien ne s'affiche ici)
+│   ├── catalogue.py           base locale des cartes (SQLite) et règles des foils
+│   ├── import_catalogue.py    téléchargement du catalogue depuis Riftcodex
+│   ├── images.py              images des cartes et icônes officielles
+│   ├── collection.py          collection du joueur et sauvegarde en arrière-plan
+│   ├── supabase_client.py     comptes, connexion et requêtes Supabase
+│   └── mises_a_jour.py        vérification des nouvelles versions sur GitHub
+└── interface/             tout ce qui s'affiche
+    ├── theme.py               couleurs et style
+    ├── fenetre_connexion.py   connexion et inscription
+    ├── fenetre_principale.py  barre latérale et pages
+    ├── pages/                 une page par entrée de la barre latérale
+    └── composants/            morceaux réutilisés par les pages (grille, panneau, filtres, effets 3D…)
+ressources/                icône de l'appli
+supabase/                  scripts SQL du serveur, à lancer dans l'ordre
+construction/              fabrication du .exe et de l'installateur
+```
+
+Règle à garder : un fichier de `donnees/` n'importe jamais rien de `interface/`.
+
 ## Lancer depuis le code
 
 1. `pip install -r requirements.txt`
 2. Mettre un fichier `.env` à côté de `main.py`, avec `SUPABASE_URL` et `SUPABASE_PUBLISHABLE_KEY`.
 3. `python main.py`
 
-## Fabriquer l'installateur (Windows)
+## Recréer le serveur Supabase
 
-1. Installer Inno Setup 6.3 ou plus récent : https://jrsoftware.org/isdl.php
-2. `pip install -r requirements-construction.txt`
-3. `python construire.py`
+Dans un nouveau projet Supabase, ouvrir « SQL Editor » et lancer, une seule fois chacun et dans cet ordre :
 
-Résultat dans `dist/` : le dossier `RiftboundCollection` (l'appli) et `RiftboundCollection-Setup-<version>.exe` (l'installateur).
+1. `supabase/1_tables.sql` : tables, sécurité ligne par ligne, création du profil à l'inscription.
+2. `supabase/2_echanges.sql` : contact des joueurs et recherche des échanges.
 
-Le script refuse de continuer si le `.env` contient une clé secrète. Seules `SUPABASE_URL` et la clé publique `SUPABASE_PUBLISHABLE_KEY` sont mises dans l'appli.
+Une prochaine modification du serveur ira dans un nouveau fichier `3_....sql`.
 
 ## Inscriptions (réglages Supabase)
 
@@ -30,8 +56,18 @@ Dans le tableau de bord Supabase, partie Authentication :
 
 L'appli gère les deux cas : sans confirmation, elle ouvre directement la collection après l'inscription.
 
+## Fabriquer l'installateur (Windows)
+
+1. Installer Inno Setup 6.3 ou plus récent : https://jrsoftware.org/isdl.php
+2. `pip install -r construction/requirements.txt`
+3. `python construction/construire.py`
+
+Résultat dans `dist/` : le dossier `RiftboundCollection` (l'appli) et `RiftboundCollection-Setup-<version>.exe` (l'installateur).
+
+Le script refuse de continuer si le `.env` contient une clé secrète. Seules `SUPABASE_URL` et la clé publique `SUPABASE_PUBLISHABLE_KEY` sont mises dans l'appli.
+
 ## Publier une nouvelle version
 
-1. Changer `VERSION` dans `app/infos.py` (par exemple `1.0.1`).
-2. `python construire.py`
-3. Sur GitHub : Releases, « Draft a new release », tag `v1.0.1`, joindre l'installateur.
+1. Changer `VERSION` dans `app/infos.py` (par exemple `1.0.2`).
+2. `python construction/construire.py`
+3. Sur GitHub : Releases, « Draft a new release », tag `V1.0.2` (même forme que les précédents), joindre l'installateur.

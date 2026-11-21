@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import supabase_client
+from app.donnees import supabase_client
 
 ADRESSE_VALIDE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 PSEUDO_MIN = 3

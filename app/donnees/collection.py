@@ -3,7 +3,8 @@ import threading
 
 from PySide6.QtCore import QObject, Qt, Signal
 
-from app import catalogue, journal, supabase_client
+from app import journal
+from app.donnees import catalogue, supabase_client
 
 ATTENTE_FERMETURE = 10
 
@@ -83,9 +84,6 @@ class Collection(QObject):
 
     def a_une_foil(self, carte_id):
         return self.version(carte_id, True)["quantite"] > 0
-
-    def en_attente(self, carte_id):
-        return carte_id in self.en_cours
 
     def enregistrer(self, carte_id, versions):
         changees = [dict(v) for v in versions if v != self.version(carte_id, v["foil"])]

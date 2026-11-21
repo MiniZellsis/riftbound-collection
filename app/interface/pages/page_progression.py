@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import catalogue
+from app.donnees import catalogue
 
 
 class PageProgression(QWidget):

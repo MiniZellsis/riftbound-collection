@@ -2,8 +2,7 @@ import threading
 import traceback
 from datetime import datetime
 
-from app.catalogue import DOSSIER_DONNEES
-from app.infos import VERSION
+from app.infos import DOSSIER_DONNEES, VERSION
 
 FICHIER = DOSSIER_DONNEES / "erreurs.log"
 TAILLE_MAX = 1_000_000

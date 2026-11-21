@@ -7,11 +7,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+RACINE = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(RACINE))
+
 from dotenv import dotenv_values
 
 from app.infos import NOM, VERSION, version_en_nombres
 
-RACINE = Path(__file__).resolve().parent
 CONSTRUCTION = RACINE / "build"
 DISTRIBUTION = RACINE / "dist"
 NOM_EXE = "RiftboundCollection"
@@ -37,7 +39,7 @@ def role_jwt(cle):
 def lire_reglages():
     fichier = RACINE / ".env"
     if not fichier.exists():
-        raise ErreurConstruction("le fichier .env est introuvable à côté de construire.py.")
+        raise ErreurConstruction("le fichier .env est introuvable à côté de main.py.")
     valeurs = dotenv_values(fichier)
     manquantes = [nom for nom in VARIABLES if not valeurs.get(nom)]
     if manquantes:
@@ -136,7 +138,7 @@ def fabriquer_installateur():
     iscc = trouver_inno_setup()
     if iscc is None:
         return None
-    subprocess.run([iscc, f"/DVersion={VERSION}", str(RACINE / "installateur.iss")], check=True)
+    subprocess.run([iscc, f"/DVersion={VERSION}", str(Path(__file__).with_name("installateur.iss"))], check=True)
     return DISTRIBUTION / f"{NOM_EXE}-Setup-{VERSION}.exe"
 
 
@@ -158,7 +160,7 @@ def main():
     if installateur is None:
         print(
             "Inno Setup est introuvable : installe-le (https://jrsoftware.org/isdl.php), "
-            "puis relance python construire.py."
+            "puis relance python construction/construire.py."
         )
         return
     print(f"Installateur prêt : {installateur}")

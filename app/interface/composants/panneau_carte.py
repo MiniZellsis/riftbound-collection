@@ -12,11 +12,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app import catalogue, theme
-from app.barre_filtres import DOMAINES, RARETES
-from app.collection import version_vide
-from app.image_carte import ImageCarte
-from app.images import (
+from app.donnees import catalogue
+from app.donnees.collection import version_vide
+from app.donnees.images import (
     DELAI_MAX,
     LARGEUR_GRANDE,
     arrondir,
@@ -25,8 +23,10 @@ from app.images import (
     fichier_miniature,
     url_redimensionnee,
 )
+from app.interface import theme
+from app.interface.composants.image_carte import ImageCarte
 
-COULEURS = dict(DOMAINES + RARETES)
+COULEURS = dict(theme.DOMAINES + theme.RARETES)
 DELAI_SAUVEGARDE = 700
 
 

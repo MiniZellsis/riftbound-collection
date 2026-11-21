@@ -10,8 +10,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.catalogue import DOSSIER_DONNEES
-from app.infos import NOM, VERSION
+from app.infos import DOSSIER_DONNEES, NOM, VERSION
 
 MENTION_RIOT = (
     "Riftbound Collection n'est pas approuvé par Riot Games et ne reflète pas les "
