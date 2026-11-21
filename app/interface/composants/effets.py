@@ -1,6 +1,6 @@
 import math
 
-from PySide6.QtCore import QElapsedTimer, QObject, QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QElapsedTimer, QObject, QPointF, QRectF, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QConicalGradient,
@@ -20,6 +20,20 @@ VITESSE = 0.25
 BORD = 2
 ARC_EN_CIEL = ["#ff6b9a", "#ffd36b", "#7bffb1", "#6bd5ff", "#b48cff", "#ff6b9a"]
 OMBRES = {}
+_actifs = None
+
+
+def effets_actifs():
+    global _actifs
+    if _actifs is None:
+        _actifs = QSettings().value("effets_3d", True, bool)
+    return _actifs
+
+
+def definir_effets(actifs):
+    global _actifs
+    _actifs = bool(actifs)
+    QSettings().setValue("effets_3d", _actifs)
 
 
 class Inclinaison(QObject):
@@ -46,6 +60,9 @@ class Inclinaison(QObject):
             self.minuteur.start()
 
     def viser(self, zone, position):
+        if not effets_actifs():
+            self.relacher()
+            return
         x = (position.x() - zone.center().x()) / (zone.width() / 2)
         y = (position.y() - zone.center().y()) / (zone.height() / 2)
         self.cible_x = max(-1.0, min(x, 1.0))

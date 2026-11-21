@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
 )
 
 from app.donnees import catalogue, supabase_client
+from app.interface import icones
+from app.interface.composants.elements import Titre
 
 
 class PageEchanges(QWidget):
@@ -24,12 +26,13 @@ class PageEchanges(QWidget):
         self.pseudo = pseudo
         self.cartes = {}
 
-        titre = QLabel("Échanges")
-        titre.setObjectName("titre")
+        titre = Titre("Échanges")
         self.bouton_copier = QPushButton("Copier ma liste pour Discord")
         self.bouton_copier.clicked.connect(self.copier_liste)
+        icones.lier(self.bouton_copier, "copy", 15, "OR_CLAIR", "OR_CLAIR")
         bouton_actualiser = QPushButton("Actualiser")
         bouton_actualiser.clicked.connect(self.actualiser)
+        icones.lier(bouton_actualiser, "refresh-cw", 15, "OR_CLAIR", "OR_CLAIR")
 
         entete = QHBoxLayout()
         entete.addWidget(titre)
@@ -68,12 +71,12 @@ class PageEchanges(QWidget):
         )
 
         onglets = QTabWidget()
-        onglets.addTab(self.tableau_joueurs, "Par joueur")
-        onglets.addTab(self.tableau_recevoir, "Je peux recevoir")
-        onglets.addTab(self.tableau_donner, "Je peux donner")
+        onglets.addTab(self.tableau_joueurs, "PAR JOUEUR")
+        onglets.addTab(self.tableau_recevoir, "JE PEUX RECEVOIR")
+        onglets.addTab(self.tableau_donner, "JE PEUX DONNER")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 12)
+        layout.setContentsMargins(28, 22, 24, 12)
         layout.setSpacing(10)
         layout.addLayout(entete)
         layout.addLayout(ligne_contact)

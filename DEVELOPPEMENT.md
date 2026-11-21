@@ -19,17 +19,26 @@ app/
 │   ├── supabase_client.py     comptes, connexion et requêtes Supabase
 │   └── mises_a_jour.py        vérification des nouvelles versions sur GitHub
 └── interface/             tout ce qui s'affiche
-    ├── theme.py               couleurs et style
+    ├── theme.py               couleurs des modes clair et sombre, polices, feuille de style, choix du thème
+    ├── icones.py              icônes SVG recolorées selon le thème
     ├── fenetre_connexion.py   connexion et inscription
     ├── fenetre_principale.py  barre latérale et pages
     ├── pages/                 une page par entrée de la barre latérale
     └── composants/            morceaux réutilisés par les pages (grille, panneau, filtres, effets 3D…)
-ressources/                icône de l'appli
+                               elements.py : titres, cartes de réglages, interrupteur, avatar, choix du thème
+ressources/                icône de l'appli, polices (polices/) et icônes (icones/)
 supabase/                  scripts SQL du serveur, à lancer dans l'ordre
 construction/              fabrication du .exe et de l'installateur
 ```
 
 Règle à garder : un fichier de `donnees/` n'importe jamais rien de `interface/`.
+
+## Thème, polices et icônes
+
+- Deux palettes dans `app/interface/theme.py` : `sombre` et `clair`. Le choix (Clair, Sombre ou Système) est gardé dans les réglages Windows de l'appli (clé `theme`). « Système » suit le mode de Windows, même pendant que l'appli est ouverte.
+- Les widgets dessinés à la main lisent les couleurs au moment de dessiner (`theme.OR`, `theme.couleur("TEXTE", alpha)`…). Pour un dessin gardé en cache, écouter `theme.signaux().change`.
+- Polices : Cinzel (titres, gras 800, en majuscules) et Albert Sans (texte), sous licence OFL. Les fichiers de `ressources/polices/` sont des versions à graisse fixe, tirées des polices variables de Google Fonts.
+- Icônes : Lucide, licence ISC. Pour en ajouter une, copier son fichier `.svg` depuis lucide.dev dans `ressources/icones/`, puis l'utiliser avec `icones.lier(bouton, "nom")` (elle change de couleur avec le thème).
 
 ## Lancer depuis le code
 

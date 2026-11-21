@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.donnees.images import ICONES, fichier_icone
-from app.interface import theme
+from app.interface import icones, theme
 
 STATUTS = [
     ("possedees", "Possédées", "coche"),
@@ -31,19 +31,6 @@ def creer_stylo(couleur, epaisseur):
     stylo.setCapStyle(Qt.PenCapStyle.RoundCap)
     stylo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     return stylo
-
-
-def icone_loupe():
-    pixmap = QPixmap(32, 32)
-    pixmap.setDevicePixelRatio(2)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    peintre = QPainter(pixmap)
-    peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
-    peintre.setPen(creer_stylo(theme.TEXTE_DOUX, 1.6))
-    peintre.drawEllipse(QPointF(7, 7), 4.5, 4.5)
-    peintre.drawLine(QPointF(10.5, 10.5), QPointF(14, 14))
-    peintre.end()
-    return QIcon(pixmap)
 
 
 def dessiner_halo(peintre, centre, rayon, couleur):
@@ -80,7 +67,7 @@ def dessiner_symbole(peintre, centre, rayon, symbole, allume):
     peintre.setBrush(QColor(theme.OR if allume else theme.SURFACE_HAUTE))
     peintre.drawEllipse(centre, rayon, rayon)
 
-    stylo = creer_stylo(theme.FOND if allume else theme.TEXTE_DOUX, 2)
+    stylo = creer_stylo(theme.ENCRE if allume else theme.TEXTE_DOUX, 2)
     peintre.setPen(stylo)
     peintre.setBrush(Qt.BrushStyle.NoBrush)
     x, y, r = centre.x(), centre.y(), rayon * 0.45
@@ -148,7 +135,7 @@ class Choix(QAbstractButton):
             peintre.setBrush(QColor(theme.SURFACE_HAUTE))
             peintre.setPen(Qt.PenStyle.NoPen)
         else:
-            peintre.setBrush(QColor(255, 255, 255, 8))
+            peintre.setBrush(theme.couleur("TEXTE", 10))
             peintre.setPen(Qt.PenStyle.NoPen)
         peintre.drawRoundedRect(cadre, 10, 10)
 
@@ -215,7 +202,8 @@ class BarreFiltres(QWidget):
         self.recherche.setObjectName("recherche")
         self.recherche.setPlaceholderText("Rechercher une carte (nom ou code)")
         self.recherche.setClearButtonEnabled(True)
-        self.recherche.addAction(icone_loupe(), QLineEdit.ActionPosition.LeadingPosition)
+        loupe = self.recherche.addAction(QIcon(), QLineEdit.ActionPosition.LeadingPosition)
+        icones.lier(loupe, "search", 16, "TEXTE_DOUX", "TEXTE_DOUX")
         self.recherche.setMinimumWidth(220)
         self.recherche.setMaximumWidth(420)
 

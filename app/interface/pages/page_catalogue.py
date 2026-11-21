@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QTabBar, QVBoxL
 
 from app.donnees import catalogue
 from app.interface.composants.barre_filtres import BarreFiltres
+from app.interface.composants.elements import Titre
 from app.interface.composants.grille_cartes import ReglageTaille
 from app.interface.composants.zone_cartes import ZoneCartes
 
@@ -25,9 +26,12 @@ class PageCatalogue(QWidget):
         self.reglage = ReglageTaille(self.grille)
 
         entete = QHBoxLayout()
-        entete.addWidget(self.onglets)
+        entete.addWidget(Titre("Catalogue"))
         entete.addStretch()
         entete.addWidget(self.reglage)
+        ligne_onglets = QHBoxLayout()
+        ligne_onglets.addWidget(self.onglets)
+        ligne_onglets.addStretch()
 
         self.texte_progression = QLabel("")
         self.barre_progression = QProgressBar()
@@ -56,9 +60,10 @@ class PageCatalogue(QWidget):
         self.zone.afficher([], ("Chargement du catalogue…",))
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 16, 24, 12)
+        layout.setContentsMargins(28, 22, 24, 12)
         layout.setSpacing(10)
         layout.addLayout(entete)
+        layout.addLayout(ligne_onglets)
         layout.addWidget(self.haut)
         layout.addWidget(self.zone, stretch=1)
 
@@ -87,7 +92,7 @@ class PageCatalogue(QWidget):
         while self.onglets.count():
             self.onglets.removeTab(0)
         for nom in self.sets:
-            index = self.onglets.addTab(nom)
+            index = self.onglets.addTab(nom.upper())
             self.onglets.setTabData(index, nom)
             if nom == dernier:
                 self.onglets.setCurrentIndex(index)
@@ -131,9 +136,9 @@ class PageCatalogue(QWidget):
             nom = self.onglets.tabData(index)
             if actifs:
                 nombre = sum(1 for carte in self.sets[nom] if self.correspond(carte, filtres))
-                self.onglets.setTabText(index, f"{nom} ({nombre})")
+                self.onglets.setTabText(index, f"{nom.upper()} ({nombre})")
             else:
-                self.onglets.setTabText(index, nom)
+                self.onglets.setTabText(index, nom.upper())
 
         cartes = [carte for carte in self.cartes_du_set() if self.correspond(carte, filtres)]
         self.compteur.setText(f"{len(cartes)} carte(s) affichée(s)")

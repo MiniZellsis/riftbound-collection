@@ -1,6 +1,7 @@
 import re
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -12,6 +13,8 @@ from PySide6.QtWidgets import (
 )
 
 from app.donnees import supabase_client
+from app.infos import ICONE
+from app.interface.composants.elements import Titre
 
 ADRESSE_VALIDE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 PSEUDO_MIN = 3
@@ -38,8 +41,15 @@ class FenetreConnexion(QWidget):
         super().__init__()
         self.inscription = False
 
-        self.titre = QLabel("")
-        self.titre.setObjectName("titre")
+        self.image = QLabel()
+        self.image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        image = QPixmap(str(ICONE)).scaled(
+            128, 128, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
+        image.setDevicePixelRatio(2)
+        self.image.setPixmap(image)
+
+        self.titre = Titre("", "titre_connexion")
         self.titre.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.champ_email = QLineEdit()
@@ -74,6 +84,8 @@ class FenetreConnexion(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(10)
+        layout.addWidget(self.image)
+        layout.addSpacing(4)
         layout.addWidget(self.titre)
         layout.addSpacing(10)
         layout.addWidget(self.champ_email)

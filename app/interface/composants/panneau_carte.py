@@ -23,7 +23,7 @@ from app.donnees.images import (
     fichier_miniature,
     url_redimensionnee,
 )
-from app.interface import theme
+from app.interface import icones, theme
 from app.interface.composants.image_carte import ImageCarte
 
 COULEURS = dict(theme.DOMAINES + theme.RARETES)
@@ -36,12 +36,13 @@ class Compteur(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.valeur = 0
-        self.moins = QPushButton("−")
-        self.plus = QPushButton("+")
-        for bouton in (self.moins, self.plus):
+        self.moins = QPushButton("")
+        self.plus = QPushButton("")
+        for bouton, nom_icone in ((self.moins, "minus"), (self.plus, "plus")):
             bouton.setObjectName("rond")
             bouton.setCursor(Qt.CursorShape.PointingHandCursor)
             bouton.setAutoRepeat(True)
+            icones.lier(bouton, nom_icone, 14, "TEXTE", "TEXTE")
         self.texte = QLabel("0")
         self.texte.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.texte.setFixedWidth(26)
@@ -87,8 +88,9 @@ class PanneauCarte(QFrame):
         self.reseau = QNetworkAccessManager(self)
         self.reponse = None
 
-        bouton_fermer = QPushButton("×")
+        bouton_fermer = QPushButton("")
         bouton_fermer.setObjectName("fermer")
+        icones.lier(bouton_fermer, "x", 17, "TEXTE_DOUX", "TEXTE")
         bouton_fermer.setCursor(Qt.CursorShape.PointingHandCursor)
         bouton_fermer.setToolTip("Fermer (Échap)")
         bouton_fermer.clicked.connect(self.ferme)
@@ -135,6 +137,8 @@ class PanneauCarte(QFrame):
         self.message.hide()
 
         self.bouton_prix = QPushButton("Voir le prix sur TCGplayer")
+        self.bouton_prix.setCursor(Qt.CursorShape.PointingHandCursor)
+        icones.lier(self.bouton_prix, "external-link", 15, "OR_CLAIR", "OR_CLAIR")
         self.bouton_prix.clicked.connect(self.ouvrir_tcgplayer)
 
         layout = QVBoxLayout(self)
@@ -190,7 +194,7 @@ class PanneauCarte(QFrame):
         self.enregistrer_maintenant()
         self.carte = catalogue.lire_carte(carte_id)
         self.seule_foil = catalogue.toujours_foil(self.carte)
-        self.nom.setText(self.carte["nom"])
+        self.nom.setText(self.carte["nom"].upper())
         self.details.setText(self.texte_details())
         self.version.setText(self.texte_version())
         self.version.setVisible(bool(self.version.text()))

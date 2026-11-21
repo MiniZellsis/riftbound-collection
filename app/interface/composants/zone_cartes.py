@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWi
 
 from app.donnees import catalogue
 from app.donnees.collection import version_vide
-from app.interface import theme
+from app.interface import icones, theme
 from app.interface.composants.grille_cartes import ROLE_CARTE_ID, GrilleCartes
 from app.interface.composants.panneau_carte import PanneauCarte
 
@@ -47,6 +47,8 @@ class EtatVide(QWidget):
         self.bouton.setObjectName("principal")
         self.bouton.setCursor(Qt.CursorShape.PointingHandCursor)
         self.bouton.clicked.connect(self.action)
+        self.arguments = None
+        theme.signaux().change.connect(self.redessiner)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
@@ -58,7 +60,12 @@ class EtatVide(QWidget):
         layout.addWidget(self.bouton, alignment=Qt.AlignmentFlag.AlignHCenter)
         layout.addStretch(3)
 
+    def redessiner(self):
+        if self.arguments is not None:
+            self.definir(*self.arguments)
+
     def definir(self, titre, texte="", bouton="", loupe=False):
+        self.arguments = (titre, texte, bouton, loupe)
         self.dessin.setPixmap(dessin_vide(loupe))
         self.titre.setText(titre)
         self.texte.setText(texte)
@@ -164,27 +171,28 @@ class ZoneCartes(QWidget):
         principale = foil if seule_foil else normale
 
         menu = theme.creer_menu(self)
-        titre = menu.addAction(element.text())
+        titre = menu.addAction(element.text().upper())
+        titre.setFont(theme.police_titres(13))
         titre.setEnabled(False)
         menu.addSeparator()
-        ajouter = menu.addAction("Ajouter un exemplaire")
-        ajouter_foil = None if seule_foil else menu.addAction("Ajouter une foil")
-        retirer = menu.addAction("Retirer un exemplaire")
+        ajouter = menu.addAction(icones.icone("plus", 16), "Ajouter un exemplaire")
+        ajouter_foil = None if seule_foil else menu.addAction(icones.icone("sparkles", 16), "Ajouter une foil")
+        retirer = menu.addAction(icones.icone("minus", 16), "Retirer un exemplaire")
         retirer.setEnabled(principale["quantite"] > 0)
         retirer_foil = None
         if not seule_foil:
-            retirer_foil = menu.addAction("Retirer une foil")
+            retirer_foil = menu.addAction(icones.icone("minus", 16), "Retirer une foil")
             retirer_foil.setEnabled(foil["quantite"] > 0)
         menu.addSeparator()
-        recherchee = menu.addAction("Recherchée")
+        recherchee = menu.addAction(icones.icone("heart", 16), "Recherchée")
         recherchee.setCheckable(True)
         recherchee.setChecked(principale["recherche"])
-        doubles = menu.addAction("Doubles à l'échange")
+        doubles = menu.addAction(icones.icone("arrow-left-right", 16), "Doubles à l'échange")
         doubles.setCheckable(True)
         doubles.setChecked(principale["a_echanger"] > 0)
         doubles.setEnabled(principale["quantite"] > 1 or principale["a_echanger"] > 0)
         menu.addSeparator()
-        detail = menu.addAction("Voir le détail")
+        detail = menu.addAction(icones.icone("panel-right-open", 16), "Voir le détail")
         if not self.collection.chargee:
             for action in (ajouter, ajouter_foil, retirer, retirer_foil, recherchee, doubles):
                 if action is not None:

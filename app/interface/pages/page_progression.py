@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import (
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QProgressBar,
     QVBoxLayout,
@@ -7,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.donnees import catalogue
+from app.interface.composants.elements import Titre
 
 
 class PageProgression(QWidget):
@@ -14,8 +16,7 @@ class PageProgression(QWidget):
         super().__init__(parent)
         self.collection = collection
 
-        titre = QLabel("Progression")
-        titre.setObjectName("titre")
+        titre = Titre("Progression")
         explication = QLabel(
             "Les cartes de base sont celles numérotées dans le set. Les variantes "
             "ajoutent les arts alternatifs, signatures et cartes surnumérotées."
@@ -26,7 +27,7 @@ class PageProgression(QWidget):
         self.tableau = QWidget()
 
         self.layout_page = QVBoxLayout(self)
-        self.layout_page.setContentsMargins(24, 20, 24, 12)
+        self.layout_page.setContentsMargins(28, 22, 24, 12)
         self.layout_page.setSpacing(12)
         self.layout_page.addWidget(titre)
         self.layout_page.addWidget(explication)
@@ -69,7 +70,17 @@ class PageProgression(QWidget):
     def creer_barre(self, cartes):
         possedees = sum(1 for carte_id in cartes if self.collection.quantite(carte_id) > 0)
         barre = QProgressBar()
+        barre.setObjectName("fine")
+        barre.setTextVisible(False)
         barre.setRange(0, max(len(cartes), 1))
         barre.setValue(possedees)
-        barre.setFormat(f"{possedees} / {len(cartes)}  (%p %)")
-        return barre
+        pourcentage = round(100 * possedees / len(cartes)) if cartes else 0
+        texte = QLabel(f"{possedees} / {len(cartes)}  ·  {pourcentage} %")
+        texte.setMinimumWidth(110)
+        zone = QWidget()
+        ligne = QHBoxLayout(zone)
+        ligne.setContentsMargins(0, 0, 0, 0)
+        ligne.setSpacing(12)
+        ligne.addWidget(barre, stretch=1)
+        ligne.addWidget(texte)
+        return zone

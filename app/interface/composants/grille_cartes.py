@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QListView,
     QListWidget,
     QListWidgetItem,
+    QSizePolicy,
     QSlider,
     QStyle,
     QStyledItemDelegate,
@@ -16,7 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.donnees.images import ARRONDI, charger_miniature
-from app.interface import theme
+from app.interface import icones, theme
 from app.interface.composants.effets import (
     Inclinaison,
     ajouter_effets,
@@ -45,18 +46,6 @@ def lire_largeur():
     return max(LARGEUR_MIN, min(largeur, LARGEUR_MAX))
 
 
-def icone_carte(largeur, hauteur):
-    pixmap = QPixmap(largeur * 2, hauteur * 2)
-    pixmap.setDevicePixelRatio(2)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    peintre = QPainter(pixmap)
-    peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
-    peintre.setPen(QPen(QColor(theme.TEXTE_DOUX), 1.4))
-    peintre.drawRoundedRect(QRectF(1, 1, largeur - 2, hauteur - 2), 2, 2)
-    peintre.end()
-    return pixmap
-
-
 class ReglageTaille(QWidget):
     def __init__(self, grille, parent=None):
         super().__init__(parent)
@@ -70,9 +59,12 @@ class ReglageTaille(QWidget):
         self.curseur.valueChanged.connect(grille.definir_largeur)
 
         petite = QLabel()
-        petite.setPixmap(icone_carte(10, 14))
+        petite.setFixedSize(13, 13)
+        icones.lier_image(petite, "rectangle-vertical", 13, "TEXTE_DOUX")
         grande = QLabel()
-        grande.setPixmap(icone_carte(14, 20))
+        grande.setFixedSize(19, 19)
+        icones.lier_image(grande, "rectangle-vertical", 19, "TEXTE_DOUX")
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -264,7 +256,7 @@ class GrilleCartes(QListWidget):
 
     def ajuster_colonnes(self):
         case = self.taille_case()
-        largeur_visible = self.viewport().width()
+        largeur_visible = self.viewport().width() - 2
         colonnes = max(1, largeur_visible // case.width())
         self.setGridSize(QSize(max(case.width(), largeur_visible // colonnes), case.height()))
 

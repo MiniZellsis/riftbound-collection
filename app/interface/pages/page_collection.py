@@ -2,6 +2,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from app.donnees import catalogue
+from app.interface.composants.elements import Titre
 from app.interface.composants.grille_cartes import ReglageTaille
 from app.interface.composants.zone_cartes import ZoneCartes
 
@@ -28,8 +29,7 @@ class PageCollection(QWidget):
         super().__init__(parent)
         self.collection = collection
 
-        titre = QLabel("Ma collection")
-        titre.setObjectName("titre")
+        titre = Titre("Ma collection")
         self.zone = ZoneCartes(collection)
         self.grille = self.zone.grille
         self.reglage = ReglageTaille(self.grille)
@@ -47,7 +47,7 @@ class PageCollection(QWidget):
             ligne_tuiles.addWidget(self.creer_tuile(cle, legende))
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 12)
+        layout.setContentsMargins(28, 22, 24, 12)
         layout.setSpacing(16)
         layout.addLayout(entete)
         layout.addLayout(ligne_tuiles)
