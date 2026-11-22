@@ -1,13 +1,26 @@
-from PySide6.QtCore import QPointF, QRectF, Qt, QVariantAnimation
-from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen, QPolygonF, QRadialGradient
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QVariantAnimation, Signal
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontMetrics,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QPolygonF,
+    QRadialGradient,
+)
 from PySide6.QtWidgets import (
     QAbstractButton,
     QButtonGroup,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QPushButton,
     QSizePolicy,
+    QTabBar,
     QVBoxLayout,
     QWidget,
 )
@@ -388,3 +401,299 @@ def ligne_reglage(titre, aide, controle):
     ligne.addLayout(textes, stretch=1)
     ligne.addWidget(controle, alignment=Qt.AlignmentFlag.AlignVCenter)
     return ligne
+
+
+class Onglets(QTabBar):
+    HAUTEUR = 46
+    BASE = 41
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.nombres = []
+        self.survol = -1
+        self.setDrawBase(False)
+        self.setExpanding(False)
+        self.setElideMode(Qt.TextElideMode.ElideNone)
+        self.setMouseTracking(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def tabInserted(self, index):
+        self.nombres.insert(index, None)
+        super().tabInserted(index)
+
+    def tabRemoved(self, index):
+        del self.nombres[index]
+        super().tabRemoved(index)
+
+    def nombre(self, index):
+        return self.nombres[index] if 0 <= index < len(self.nombres) else None
+
+    def definir_nombre(self, index, nombre):
+        if self.nombre(index) != nombre:
+            self.nombres[index] = nombre
+            self.setTabText(index, self.tabText(index))
+
+    def police_nom(self):
+        police = theme.police_titres(13)
+        police.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.8)
+        return police
+
+    def police_nombre(self):
+        police = QFont(self.font())
+        police.setPixelSize(12)
+        police.setWeight(QFont.Weight.DemiBold)
+        return police
+
+    def tabSizeHint(self, index):
+        largeur = QFontMetrics(self.police_nom()).horizontalAdvance(self.tabText(index).upper())
+        nombre = self.nombre(index)
+        if nombre is not None:
+            largeur += 8 + QFontMetrics(self.police_nombre()).horizontalAdvance(str(nombre))
+        return QSize(largeur + 28, self.HAUTEUR)
+
+    def minimumTabSizeHint(self, index):
+        return self.tabSizeHint(index)
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        self.changer_survol(self.tabAt(event.position().toPoint()))
+
+    def leaveEvent(self, event):
+        super().leaveEvent(event)
+        self.changer_survol(-1)
+
+    def changer_survol(self, index):
+        if index != self.survol:
+            self.survol = index
+            self.update()
+
+    def paintEvent(self, event):
+        peintre = QPainter(self)
+        peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
+        peintre.fillRect(QRectF(0, self.BASE, self.width(), 1), theme.couleur("BORDURE"))
+        police_nom = self.police_nom()
+        ligne = self.BASE / 2 + QFontMetrics(police_nom).capHeight() / 2
+        for index in range(self.count()):
+            zone = QRectF(self.tabRect(index))
+            choisi = index == self.currentIndex()
+            if choisi:
+                couleur = "OR_CLAIR"
+            elif index == self.survol:
+                couleur = "TEXTE"
+            else:
+                couleur = "TEXTE_DOUX"
+            texte = self.tabText(index).upper()
+            peintre.setFont(police_nom)
+            peintre.setPen(theme.couleur(couleur))
+            peintre.drawText(QPointF(zone.left() + 14, ligne), texte)
+            nombre = self.nombre(index)
+            if nombre is not None:
+                x = zone.left() + 14 + QFontMetrics(police_nom).horizontalAdvance(texte) + 8
+                peintre.setFont(self.police_nombre())
+                peintre.setPen(theme.couleur("OR_CLAIR" if choisi else "TEXTE_ETEINT"))
+                peintre.drawText(QPointF(x, ligne), str(nombre))
+            if choisi:
+                gauche = zone.left() + 10
+                droite = zone.right() - 10
+                degrade = QLinearGradient(gauche, 0, droite, 0)
+                degrade.setColorAt(0, theme.couleur("OR", 0))
+                degrade.setColorAt(0.2, theme.couleur("OR"))
+                degrade.setColorAt(0.8, theme.couleur("OR"))
+                degrade.setColorAt(1, theme.couleur("OR", 0))
+                peintre.fillRect(QRectF(gauche, self.BASE - 0.5, droite - gauche, 2), degrade)
+                dessiner_losange(peintre, QPointF(zone.center().x(), self.BASE + 0.5), 3.6, theme.OR)
+
+
+class Flux(QLayout):
+    def __init__(self, ecart_horizontal=8, ecart_vertical=6, parent=None):
+        super().__init__(parent)
+        self.elements = []
+        self.ecart_horizontal = ecart_horizontal
+        self.ecart_vertical = ecart_vertical
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def addItem(self, element):
+        self.elements.append(element)
+
+    def count(self):
+        return len(self.elements)
+
+    def itemAt(self, index):
+        return self.elements[index] if 0 <= index < len(self.elements) else None
+
+    def takeAt(self, index):
+        return self.elements.pop(index) if 0 <= index < len(self.elements) else None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, largeur):
+        return self.placer(QRect(0, 0, largeur, 0), False)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self.placer(rect, True)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        taille = QSize()
+        for element in self.elements:
+            if not element.isEmpty():
+                taille = taille.expandedTo(element.minimumSize())
+        return taille
+
+    def placer(self, rect, appliquer):
+        lignes = [[]]
+        x = rect.x()
+        for element in self.elements:
+            if element.isEmpty():
+                continue
+            largeur = element.sizeHint().width()
+            if lignes[-1] and x + largeur > rect.right() + 1:
+                lignes.append([])
+                x = rect.x()
+            lignes[-1].append(element)
+            x += largeur + self.ecart_horizontal
+        y = rect.y()
+        for ligne in lignes:
+            hauteur = max((element.sizeHint().height() for element in ligne), default=0)
+            if appliquer:
+                x = rect.x()
+                for element in ligne:
+                    taille = element.sizeHint()
+                    element.setGeometry(QRect(QPoint(x, y + (hauteur - taille.height()) // 2), taille))
+                    x += taille.width() + self.ecart_horizontal
+            y += hauteur + self.ecart_vertical
+        return max(0, y - self.ecart_vertical - rect.y())
+
+
+class Statut(QWidget):
+    ETATS = {
+        "ok": ("VERT", "circle-check"),
+        "envoi": ("OR", "refresh-cw"),
+        "erreur": ("ROUGE", "circle-alert"),
+    }
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.etat = None
+        self.texte = ""
+        self.setFixedHeight(26)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+    def definir(self, etat, texte=""):
+        self.etat = etat
+        self.texte = texte if etat else ""
+        self.updateGeometry()
+        self.update()
+
+    def police(self):
+        police = QFont(self.font())
+        police.setPixelSize(12)
+        police.setWeight(QFont.Weight.DemiBold)
+        return police
+
+    def sizeHint(self):
+        if self.etat is None:
+            return QSize(0, 26)
+        return QSize(34 + QFontMetrics(self.police()).horizontalAdvance(self.texte) + 10, 26)
+
+    def paintEvent(self, event):
+        if self.etat is None:
+            return
+        nom_couleur, nom_icone = self.ETATS[self.etat]
+        peintre = QPainter(self)
+        peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
+        peintre.setPen(Qt.PenStyle.NoPen)
+        peintre.setBrush(theme.couleur(nom_couleur, 34))
+        peintre.drawRoundedRect(QRectF(self.rect()), 13, 13)
+        couleur = getattr(theme, nom_couleur)
+        peintre.drawPixmap(QPointF(11, 6), icones.pixmap(nom_icone, couleur, 14))
+        peintre.setFont(self.police())
+        peintre.setPen(QColor(couleur))
+        peintre.drawText(QRectF(32, 0, self.width() - 32, self.height()), Qt.AlignmentFlag.AlignVCenter, self.texte)
+
+
+def dessin_vide(nom_icone):
+    taille = 112
+    image = QPixmap(taille * 2, taille * 2)
+    image.setDevicePixelRatio(2)
+    image.fill(Qt.GlobalColor.transparent)
+    peintre = QPainter(image)
+    peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
+    centre = QPointF(taille / 2, taille / 2)
+    halo = QRadialGradient(centre, taille / 2)
+    halo.setColorAt(0, theme.couleur("OR", 46))
+    halo.setColorAt(1, theme.couleur("OR", 0))
+    peintre.setPen(Qt.PenStyle.NoPen)
+    peintre.setBrush(halo)
+    peintre.drawEllipse(centre, taille / 2, taille / 2)
+    pointilles = QPen(theme.trait(), 1.2)
+    pointilles.setDashPattern([2.5, 3.5])
+    peintre.setPen(pointilles)
+    peintre.setBrush(Qt.BrushStyle.NoBrush)
+    peintre.drawEllipse(centre, 44, 44)
+    peintre.setPen(QPen(theme.trait(), 1))
+    peintre.setBrush(theme.voile())
+    peintre.drawEllipse(centre, 31, 31)
+    for x in (centre.x() - 44, centre.x() + 44):
+        dessiner_losange(peintre, QPointF(x, centre.y()), 3.5, theme.OR, lueur=False)
+    peintre.drawPixmap(QPointF(centre.x() - 14, centre.y() - 14), icones.pixmap(nom_icone, theme.OR_CLAIR, 28))
+    peintre.end()
+    return image
+
+
+class EtatVide(QWidget):
+    action = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.dessin = QLabel()
+        self.dessin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.titre = QLabel("")
+        self.titre.setObjectName("titre_vide")
+        self.titre.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.texte = QLabel("")
+        self.texte.setObjectName("sous_titre")
+        self.texte.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.texte.setWordWrap(True)
+        self.texte.setFixedWidth(440)
+        self.bouton = QPushButton("")
+        self.bouton.setObjectName("principal")
+        self.bouton.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.bouton.clicked.connect(self.action)
+        self.arguments = None
+        theme.signaux().change.connect(self.redessiner)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.addStretch(2)
+        layout.addWidget(self.dessin)
+        layout.addSpacing(4)
+        layout.addWidget(self.titre)
+        layout.addWidget(self.texte, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addSpacing(6)
+        layout.addWidget(self.bouton, alignment=Qt.AlignmentFlag.AlignHCenter)
+        layout.addStretch(3)
+
+    def redessiner(self):
+        if self.arguments is not None:
+            self.definir(*self.arguments)
+
+    def definir(self, titre, texte="", bouton="", nom_icone="search"):
+        self.arguments = (titre, texte, bouton, nom_icone)
+        self.dessin.setPixmap(dessin_vide(nom_icone))
+        self.titre.setText(titre)
+        self.texte.setText(texte)
+        hauteur = self.texte.heightForWidth(self.texte.width())
+        if hauteur > 0:
+            self.texte.setFixedHeight(hauteur)
+        self.texte.setVisible(bool(texte))
+        self.bouton.setText(bouton)
+        self.bouton.setVisible(bool(bouton))

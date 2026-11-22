@@ -1,7 +1,7 @@
 import math
 
-from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QPolygonF, QRadialGradient
+from PySide6.QtCore import QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPen, QPixmap, QPolygonF, QRadialGradient
 from PySide6.QtWidgets import (
     QAbstractButton,
     QHBoxLayout,
@@ -24,6 +24,13 @@ STATUTS = [
 ]
 
 TYPES = ["Unit", "Spell", "Gear", "Legend", "Battlefield", "Rune"]
+
+GROUPES = [
+    ("statuts", "Collection", "library"),
+    ("domaines", "Domaine", "hexagon"),
+    ("raretes", "Rareté", "gem"),
+    ("types", "Type", "sword"),
+]
 
 
 def creer_stylo(couleur, epaisseur):
@@ -172,21 +179,136 @@ class Choix(QAbstractButton):
         return self.icone is not None
 
 
-class BoutonFiltre(QPushButton):
-    def __init__(self, texte, parent=None):
-        super().__init__(texte, parent)
-        self.setObjectName("filtre")
+class BoutonFiltre(QAbstractButton):
+    vider = Signal()
+
+    def __init__(self, texte, nom_icone, parent=None):
+        super().__init__(parent)
+        self.nom_icone = nom_icone
+        self.actif = False
+        self.sur_croix = False
+        self.appui_croix = False
+        self.setText(texte)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setMouseTracking(True)
+        self.setFixedHeight(36)
+
+    def definir(self, texte, actif):
+        self.setText(texte)
+        self.actif = actif
+        if not actif:
+            self.sur_croix = False
+        self.updateGeometry()
+        self.update()
+
+    def police(self):
+        police = QFont(self.font())
+        police.setPixelSize(13)
+        police.setWeight(QFont.Weight.DemiBold if self.actif else QFont.Weight.Medium)
+        return police
+
+    def sizeHint(self):
+        largeur = QFontMetrics(self.police()).horizontalAdvance(self.text())
+        return QSize(largeur + (83 if self.actif else 74), 36)
+
+    def zone_croix(self):
+        return QRectF(self.width() - 42, 0, 42, self.height())
+
+    def enterEvent(self, event):
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event):
+        super().leaveEvent(event)
+        self.sur_croix = False
+        self.update()
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        sur_croix = self.actif and self.zone_croix().contains(event.position())
+        if sur_croix != self.sur_croix:
+            self.sur_croix = sur_croix
+            self.setToolTip("Retirer ce filtre" if sur_croix else "")
+            self.update()
+
+    def mousePressEvent(self, event):
+        if self.actif and event.button() == Qt.MouseButton.LeftButton and self.zone_croix().contains(event.position()):
+            self.appui_croix = True
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self.appui_croix:
+            self.appui_croix = False
+            event.accept()
+            if self.zone_croix().contains(event.position()):
+                self.vider.emit()
+            return
+        super().mouseReleaseEvent(event)
 
     def paintEvent(self, event):
-        super().paintEvent(event)
         peintre = QPainter(self)
         peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
-        couleur = theme.OR_CLAIR if self.property("actif") else theme.TEXTE_DOUX
-        peintre.setPen(creer_stylo(couleur, 1.6))
-        x = self.width() - 24
-        y = self.height() / 2
-        peintre.drawPolyline(QPolygonF([QPointF(x, y - 2), QPointF(x + 4, y + 2), QPointF(x + 8, y - 2)]))
+        survol = self.underMouse()
+        if self.actif:
+            fond = theme.voile()
+            bord = theme.trait()
+            encre = theme.OR_CLAIR
+        else:
+            fond = theme.couleur("SURFACE")
+            bord = theme.couleur("TEXTE_ETEINT" if survol else "BORDURE")
+            encre = theme.TEXTE if survol else theme.TEXTE_DOUX
+        peintre.setPen(QPen(bord, 1))
+        peintre.setBrush(fond)
+        peintre.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8, 8)
+
+        milieu = self.height() / 2
+        peintre.drawPixmap(QPointF(12, milieu - 8), icones.pixmap(self.nom_icone, encre, 16))
+        peintre.setFont(self.police())
+        peintre.setPen(QColor(encre))
+        peintre.drawText(
+            QRectF(36, 0, self.width() - 36, self.height()),
+            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+            self.text(),
+        )
+
+        droite = self.width() - 12
+        if self.actif:
+            if self.sur_croix:
+                peintre.setPen(Qt.PenStyle.NoPen)
+                peintre.setBrush(theme.voile())
+                peintre.drawEllipse(QPointF(droite - 8, milieu), 13, 13)
+            peintre.fillRect(QRectF(droite - 25, milieu - 8, 1, 16), theme.trait())
+            peintre.drawPixmap(QPointF(droite - 16, milieu - 8), icones.pixmap("x", theme.OR_CLAIR, 16))
+        else:
+            couleur = encre if survol else theme.TEXTE_ETEINT
+            peintre.drawPixmap(QPointF(droite - 16, milieu - 8), icones.pixmap("chevron-down", couleur, 16))
+
+
+class ChampRecherche(QLineEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("recherche")
+        self.setPlaceholderText("Rechercher une carte (nom ou code)")
+        self.setClearButtonEnabled(True)
+        loupe = self.addAction(QIcon(), QLineEdit.ActionPosition.LeadingPosition)
+        icones.lier(loupe, "search", 16, "TEXTE_DOUX", "TEXTE_DOUX")
+        self.touche = QLabel("Ctrl F", self)
+        self.touche.setObjectName("touche_champ")
+        self.touche.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.textChanged.connect(self.placer_touche)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.placer_touche()
+
+    def placer_touche(self):
+        self.touche.adjustSize()
+        vide = not self.text()
+        self.touche.setVisible(vide)
+        self.setTextMargins(0, 0, self.touche.width() + 6 if vide else 0, 0)
+        self.touche.move(self.width() - self.touche.width() - 9, (self.height() - self.touche.height()) // 2)
 
 
 class BarreFiltres(QWidget):
@@ -198,14 +320,9 @@ class BarreFiltres(QWidget):
         self.boutons = {}
         self.titres = {}
 
-        self.recherche = QLineEdit()
-        self.recherche.setObjectName("recherche")
-        self.recherche.setPlaceholderText("Rechercher une carte (nom ou code)")
-        self.recherche.setClearButtonEnabled(True)
-        loupe = self.recherche.addAction(QIcon(), QLineEdit.ActionPosition.LeadingPosition)
-        icones.lier(loupe, "search", 16, "TEXTE_DOUX", "TEXTE_DOUX")
+        self.recherche = ChampRecherche()
         self.recherche.setMinimumWidth(220)
-        self.recherche.setMaximumWidth(420)
+        self.recherche.setMaximumWidth(360)
 
         self.bouton_effacer = QPushButton("Réinitialiser")
         self.bouton_effacer.setObjectName("lien")
@@ -217,18 +334,14 @@ class BarreFiltres(QWidget):
         layout.setSpacing(8)
         layout.addWidget(self.recherche, stretch=1)
         layout.addSpacing(4)
-        layout.addWidget(self.ajouter_groupe("statuts", "Collection", [
-            (valeur, Choix(texte, symbole=symbole)) for valeur, texte, symbole in STATUTS
-        ]))
-        layout.addWidget(self.ajouter_groupe("domaines", "Domaine", [
-            (nom, Choix(nom, couleur=couleur)) for nom, couleur in theme.DOMAINES
-        ]))
-        layout.addWidget(self.ajouter_groupe("raretes", "Rareté", [
-            (nom, Choix(nom, couleur=couleur)) for nom, couleur in theme.RARETES
-        ]))
-        layout.addWidget(self.ajouter_groupe("types", "Type", [
-            (nom, Choix(nom)) for nom in TYPES
-        ]))
+        choix = {
+            "statuts": [(valeur, Choix(texte, symbole=symbole)) for valeur, texte, symbole in STATUTS],
+            "domaines": [(nom, Choix(nom, couleur=couleur)) for nom, couleur in theme.DOMAINES],
+            "raretes": [(nom, Choix(nom, couleur=couleur)) for nom, couleur in theme.RARETES],
+            "types": [(nom, Choix(nom)) for nom in TYPES],
+        }
+        for nom, titre, nom_icone in GROUPES:
+            layout.addWidget(self.ajouter_groupe(nom, titre, nom_icone, choix[nom]))
         layout.addStretch()
         layout.addWidget(self.bouton_effacer)
 
@@ -239,8 +352,9 @@ class BarreFiltres(QWidget):
         self.recherche.textChanged.connect(self.texte_modifie)
         self.bouton_effacer.clicked.connect(self.effacer)
 
-    def ajouter_groupe(self, nom, titre, choix):
-        bouton = BoutonFiltre(titre)
+    def ajouter_groupe(self, nom, titre, nom_icone, choix):
+        bouton = BoutonFiltre(titre, nom_icone)
+        bouton.vider.connect(lambda: self.vider(nom))
 
         etiquette = QLabel(titre.upper())
         etiquette.setObjectName("section")
@@ -299,11 +413,7 @@ class BarreFiltres(QWidget):
                 texte = f"{self.titres[nom]} · {coches[0]}"
             else:
                 texte = f"{self.titres[nom]} · {len(coches)}"
-            bouton = self.boutons[nom]
-            bouton.setText(texte)
-            bouton.setProperty("actif", bool(coches))
-            bouton.style().unpolish(bouton)
-            bouton.style().polish(bouton)
+            self.boutons[nom].definir(texte, bool(coches))
         self.bouton_effacer.setVisible(self.actifs())
         self.filtres_changes.emit()
 

@@ -353,12 +353,90 @@ QLabel#etat {{
 QLabel#nom_carte {{
     font-family: "{POLICE_TITRES}";
     font-weight: 800;
-    font-size: 19px;
+    font-size: 20px;
+    letter-spacing: 0.5px;
+}}
+QLabel#code_carte {{
+    color: {p['TEXTE_ETEINT']};
+    font-size: 12px;
+    font-weight: 600;
     letter-spacing: 1px;
 }}
-QLabel#version_carte {{
+QLabel#meta_carte, QFrame#meta_carte QLabel {{
+    color: {p['TEXTE_DOUX']};
+}}
+QLabel#meta_sep {{
+    color: {p['TEXTE_ETEINT']};
+}}
+QFrame#puce_domaine {{
+    background: {p['SURFACE_HAUTE']};
+    border: 1px solid {p['BORDURE']};
+    border-radius: 12px;
+}}
+QFrame#puce_domaine QLabel {{
+    font-size: 12px;
+}}
+QLabel#puce_version {{
+    background: {voile_or};
+    border: 1px solid {trait_or};
+    border-radius: 12px;
+    padding: 0px 10px;
     color: {p['OR_CLAIR']};
     font-size: 12px;
+    font-weight: 600;
+}}
+QLabel#entete_tableau {{
+    color: {p['TEXTE_ETEINT']};
+    font-size: 11px;
+    font-weight: 600;
+}}
+QLabel#libelle_ligne {{
+    font-size: 13px;
+    font-weight: 500;
+}}
+QLabel#nombre_compteur {{
+    font-size: 14px;
+    font-weight: 700;
+}}
+QLabel#pourcentage {{
+    color: {p['OR_CLAIR']};
+    font-weight: 700;
+}}
+QLabel#touche_champ {{
+    background: {p['SURFACE_HAUTE']};
+    border: 1px solid {p['BORDURE']};
+    border-radius: 5px;
+    padding: 1px 6px;
+    color: {p['TEXTE_DOUX']};
+    font-size: 11px;
+    font-weight: 600;
+}}
+QLabel#titre_menu, QLabel#titre_menu:disabled {{
+    font-family: "{POLICE_TITRES}";
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    color: {p['OR_CLAIR']};
+}}
+QLabel#details_menu, QLabel#details_menu:disabled {{
+    color: {p['TEXTE_ETEINT']};
+    font-size: 12px;
+}}
+QLabel#nom_set {{
+    font-family: "{POLICE_TITRES}";
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 1px;
+}}
+QLabel#grand_pourcentage {{
+    font-family: "{POLICE_TITRES}";
+    font-weight: 800;
+    font-size: 22px;
+    color: {p['OR_CLAIR']};
+}}
+QLabel#chiffres_set {{
+    color: {p['TEXTE_DOUX']};
+    font-weight: 600;
 }}
 QFrame#tuile, QFrame#carte {{
     background: {p['SURFACE']};
@@ -373,7 +451,7 @@ QLabel#chiffre {{
     color: {p['OR_CLAIR']};
 }}
 QFrame#panneau {{
-    background: {p['SURFACE']};
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {p['SURFACE_HAUTE']}, stop:0.42 {p['SURFACE']});
     border: 1px solid {p['BORDURE']};
     border-top-color: {trait_or};
     border-radius: 14px;
@@ -483,26 +561,6 @@ QPushButton#segment:checked {{
     background: {p['SURFACE_HAUTE']};
     border-color: {trait_or};
 }}
-QPushButton#filtre {{
-    background: {p['SURFACE']};
-    border: 1px solid {p['BORDURE']};
-    border-radius: 8px;
-    min-height: 20px;
-    padding: 6px 34px 6px 12px;
-    color: {p['TEXTE_DOUX']};
-    font-weight: 500;
-    text-align: left;
-}}
-QPushButton#filtre:hover {{
-    border-color: {p['TEXTE_ETEINT']};
-    color: {p['TEXTE']};
-}}
-QPushButton#filtre[actif="true"] {{
-    background: {voile_or};
-    border-color: {trait_or};
-    color: {p['OR_CLAIR']};
-    font-weight: 700;
-}}
 QPushButton#lien {{
     background: transparent;
     border: none;
@@ -513,21 +571,24 @@ QPushButton#lien {{
 QPushButton#lien:hover {{
     text-decoration: underline;
 }}
-QPushButton#rond {{
+QPushButton#rond, QPushButton#rond_or {{
     background: {p['SURFACE_HAUTE']};
     border: 1px solid {p['BORDURE']};
-    border-radius: 14px;
-    min-width: 26px;
-    max-width: 26px;
-    min-height: 26px;
-    max-height: 26px;
+    border-radius: 12px;
+    min-width: 24px;
+    max-width: 24px;
+    min-height: 24px;
+    max-height: 24px;
     padding: 0;
     color: {p['TEXTE']};
 }}
-QPushButton#rond:hover {{
+QPushButton#rond_or {{
+    border-color: {trait_or};
+}}
+QPushButton#rond:hover, QPushButton#rond_or:hover {{
     border-color: {p['OR']};
 }}
-QPushButton#rond:disabled {{
+QPushButton#rond:disabled, QPushButton#rond_or:disabled {{
     background: transparent;
     border-color: {p['BORDURE']};
 }}
@@ -556,7 +617,7 @@ QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
     border-color: {p['OR']};
 }}
 QLineEdit#recherche {{
-    min-height: 20px;
+    min-height: 22px;
     padding: 6px 10px;
 }}
 QCheckBox {{
@@ -591,38 +652,41 @@ QListView {{
 QTableView {{
     background: {p['SURFACE']};
     border: 1px solid {p['BORDURE']};
-    border-radius: 10px;
-    gridline-color: {p['BORDURE']};
+    border-radius: 12px;
+    gridline-color: transparent;
     selection-background-color: {voile_or};
     selection-color: {p['TEXTE']};
+    outline: none;
+}}
+QTableView::item {{
+    padding: 0px 12px;
+    border-bottom: 1px solid {p['BORDURE']};
+}}
+QTableView::item:selected {{
+    background: {voile_or};
+    color: {p['TEXTE']};
+}}
+QHeaderView {{
+    background: transparent;
 }}
 QHeaderView::section {{
     background: {p['SURFACE_HAUTE']};
-    color: {p['TEXTE_DOUX']};
+    color: {p['TEXTE_ETEINT']};
     border: none;
     border-bottom: 1px solid {p['BORDURE']};
-    padding: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
     font-weight: 700;
 }}
-QTabWidget::pane {{
+QHeaderView::section:first {{
+    border-top-left-radius: 11px;
+}}
+QHeaderView::section:last {{
+    border-top-right-radius: 11px;
+}}
+QTableCornerButton::section {{
+    background: {p['SURFACE_HAUTE']};
     border: none;
-}}
-QTabBar::tab {{
-    background: transparent;
-    color: {p['TEXTE_DOUX']};
-    padding: 10px 14px;
-    border: none;
-    border-bottom: 2px solid transparent;
-    font-family: "{POLICE_TITRES}";
-    font-weight: 800;
-    font-size: 13px;
-}}
-QTabBar::tab:selected {{
-    color: {p['OR_CLAIR']};
-    border-bottom: 2px solid {p['OR']};
-}}
-QTabBar::tab:hover {{
-    color: {p['TEXTE']};
 }}
 QProgressBar {{
     background: {p['SURFACE']};

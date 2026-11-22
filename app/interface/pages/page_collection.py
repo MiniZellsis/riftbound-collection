@@ -19,6 +19,7 @@ VIDE = (
     "Va dans le catalogue, clique sur une carte et indique combien tu en as. "
     "Le clic droit permet aussi d'en ajouter une vite.",
     "Ouvrir le catalogue",
+    "gem",
 )
 
 

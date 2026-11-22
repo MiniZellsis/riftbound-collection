@@ -25,7 +25,8 @@ app/
     ├── fenetre_principale.py  barre latérale et pages
     ├── pages/                 une page par entrée de la barre latérale
     └── composants/            morceaux réutilisés par les pages (grille, panneau, filtres, effets 3D…)
-                               elements.py : titres, cartes de réglages, interrupteur, avatar, choix du thème
+                               elements.py : titres, cartes, interrupteur, avatar, choix du thème,
+                               onglets avec nombre, pastille d'état, état vide, mise en page en flux
 ressources/                icône de l'appli, polices (polices/) et icônes (icones/)
 supabase/                  scripts SQL du serveur, à lancer dans l'ordre
 construction/              fabrication du .exe et de l'installateur
@@ -39,6 +40,8 @@ Règle à garder : un fichier de `donnees/` n'importe jamais rien de `interface/
 - Les widgets dessinés à la main lisent les couleurs au moment de dessiner (`theme.OR`, `theme.couleur("TEXTE", alpha)`…). Pour un dessin gardé en cache, écouter `theme.signaux().change`.
 - Polices : Cinzel (titres, gras 800, en majuscules) et Albert Sans (texte), sous licence OFL. Les fichiers de `ressources/polices/` sont des versions à graisse fixe, tirées des polices variables de Google Fonts.
 - Icônes : Lucide, licence ISC. Pour en ajouter une, copier son fichier `.svg` depuis lucide.dev dans `ressources/icones/`, puis l'utiliser avec `icones.lier(bouton, "nom")` (elle change de couleur avec le thème).
+- Code imprimé d'une carte (« OGN 019 / 298 ») : `catalogue.code_affiche(carte, avec_total)`. Il est tiré du code Riftcodex (`ogn-019-298`).
+- Pastilles de la grille : dorée = exemplaires possédés, contour arc-en-ciel = au moins une foil, cœur bleu = carte recherchée mais pas encore possédée.
 
 ## Lancer depuis le code
 

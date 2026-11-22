@@ -1,5 +1,5 @@
 from PySide6.QtCore import QRectF, QSizeF, Qt
-from PySide6.QtGui import QColor, QPainter, QPixmap
+from PySide6.QtGui import QColor, QGradient, QPainter, QPixmap, QRadialGradient
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from app.donnees.images import ARRONDI
@@ -17,8 +17,8 @@ class ImageCarte(QWidget):
         self.inclinaison = Inclinaison(self)
         self.inclinaison.change.connect(self.update)
         self.setMouseTracking(True)
-        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
-        self.setMinimumSize(150, 210)
+        self.setMinimumSize(150, 200)
+        self.setMaximumHeight(470)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def definir(self, image):
@@ -59,13 +59,18 @@ class ImageCarte(QWidget):
 
     def paintEvent(self, event):
         peintre = QPainter(self)
-        peintre.fillRect(self.rect(), QColor(theme.SURFACE))
         peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
         peintre.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        halo = QRadialGradient(0.5, 0.5, 0.5)
+        halo.setCoordinateMode(QGradient.CoordinateMode.ObjectBoundingMode)
+        halo.setColorAt(0, theme.couleur("OR", 62))
+        halo.setColorAt(0.55, theme.couleur("OR", 24))
+        halo.setColorAt(1, theme.couleur("OR", 0))
+        peintre.fillRect(self.rect(), halo)
         zone = self.zone_carte()
         rayon = min(zone.width(), zone.height()) * ARRONDI
         inclinaison = self.inclinaison
-        dessiner_ombre(peintre, zone, rayon, 1, 6 + 4 * inclinaison.force)
+        dessiner_ombre(peintre, zone, rayon, 1 if theme.mode() == "sombre" else 0.55, 6 + 4 * inclinaison.force)
 
         if self.image is None:
             peintre.setPen(Qt.PenStyle.NoPen)

@@ -1,22 +1,41 @@
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
     QPushButton,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
-    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from app.donnees import catalogue, supabase_client
 from app.interface import icones
-from app.interface.composants.elements import Titre
+from app.interface.composants.elements import Carte, EtatVide, Onglets, Titre
+
+ONGLETS = ["Par joueur", "Je peux recevoir", "Je peux donner"]
+
+TUILES = [
+    ("recevoir", "cartes à recevoir"),
+    ("donner", "cartes à donner"),
+    ("joueurs", "joueurs"),
+]
+
+AUCUN_ECHANGE = (
+    "Aucun échange possible pour l'instant",
+    "Ouvre une carte et active « Recherchée » pour celles qui te manquent, puis indique "
+    "combien tu en as « À l'échange » pour tes doubles. Les joueurs qui correspondent "
+    "apparaîtront ici.",
+    "",
+    "arrow-left-right",
+)
 
 
 class PageEchanges(QWidget):
@@ -25,6 +44,7 @@ class PageEchanges(QWidget):
         self.collection = collection
         self.pseudo = pseudo
         self.cartes = {}
+        self.chiffres = {}
 
         titre = Titre("Échanges")
         self.bouton_copier = QPushButton("Copier ma liste pour Discord")
@@ -40,25 +60,41 @@ class PageEchanges(QWidget):
         entete.addWidget(self.bouton_copier)
         entete.addWidget(bouton_actualiser)
 
+        presentation = QLabel(
+            "Les joueurs qui ont les cartes que tu recherches, et ceux qui cherchent tes doubles."
+        )
+        presentation.setObjectName("sous_titre")
+
         self.champ_contact = QLineEdit()
         self.champ_contact.setPlaceholderText("Ex. Discord : ton_pseudo")
         self.champ_contact.setMaxLength(100)
         self.bouton_contact = QPushButton("Enregistrer")
+        self.bouton_contact.setObjectName("principal")
+        self.bouton_contact.setCursor(Qt.CursorShape.PointingHandCursor)
         self.bouton_contact.clicked.connect(self.enregistrer_contact)
         self.champ_contact.textEdited.connect(self.contact_modifie)
 
         ligne_contact = QHBoxLayout()
-        ligne_contact.addWidget(QLabel("Ton contact :"))
+        ligne_contact.setSpacing(10)
         ligne_contact.addWidget(self.champ_contact, stretch=1)
         ligne_contact.addWidget(self.bouton_contact)
-
         aide_contact = QLabel("Il n'est montré qu'aux joueurs avec qui un échange est possible.")
-        aide_contact.setObjectName("sous_titre")
-        self.resume = QLabel("")
-        self.resume.setWordWrap(True)
+        aide_contact.setObjectName("aide")
+
+        carte_contact = Carte("Ton contact", "user-round")
+        carte_contact.contenu.addLayout(ligne_contact)
+        carte_contact.contenu.addWidget(aide_contact)
+
+        ligne_haut = QHBoxLayout()
+        ligne_haut.setSpacing(12)
+        ligne_haut.addWidget(carte_contact, stretch=1)
+        for cle, legende in TUILES:
+            ligne_haut.addWidget(self.creer_tuile(cle, legende))
+
         self.erreur = QLabel("")
         self.erreur.setObjectName("erreur")
         self.erreur.setWordWrap(True)
+        self.erreur.hide()
 
         self.tableau_joueurs = self.creer_tableau(
             ["Joueur", "Contact", "Il te propose", "Il te cherche", "Total"]
@@ -70,43 +106,79 @@ class PageEchanges(QWidget):
             ["Joueur", "Carte", "Set", "Version", "Tu en proposes"]
         )
 
-        onglets = QTabWidget()
-        onglets.addTab(self.tableau_joueurs, "PAR JOUEUR")
-        onglets.addTab(self.tableau_recevoir, "JE PEUX RECEVOIR")
-        onglets.addTab(self.tableau_donner, "JE PEUX DONNER")
+        self.onglets = Onglets()
+        self.pile = QStackedWidget()
+        for texte, tableau in zip(ONGLETS, (self.tableau_joueurs, self.tableau_recevoir, self.tableau_donner)):
+            self.onglets.addTab(texte)
+            self.pile.addWidget(tableau)
+        self.onglets.currentChanged.connect(self.pile.setCurrentIndex)
+
+        self.vide = EtatVide()
+        self.vide.hide()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 22, 24, 12)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
         layout.addLayout(entete)
-        layout.addLayout(ligne_contact)
-        layout.addWidget(aide_contact)
-        layout.addSpacing(6)
-        layout.addWidget(self.resume)
+        layout.addWidget(presentation)
+        layout.addSpacing(4)
+        layout.addLayout(ligne_haut)
         layout.addWidget(self.erreur)
-        layout.addWidget(onglets, stretch=1)
+        layout.addWidget(self.onglets)
+        layout.addWidget(self.pile, stretch=1)
+        layout.addWidget(self.vide, stretch=1)
 
     def showEvent(self, event):
         super().showEvent(event)
         if not event.spontaneous():
             self.actualiser()
 
+    def creer_tuile(self, cle, legende):
+        tuile = QFrame()
+        tuile.setObjectName("tuile")
+        tuile.setMinimumWidth(150)
+        chiffre = QLabel("0")
+        chiffre.setObjectName("chiffre")
+        texte = QLabel(legende)
+        texte.setObjectName("sous_titre")
+        layout = QVBoxLayout(tuile)
+        layout.setContentsMargins(18, 14, 18, 14)
+        layout.setSpacing(2)
+        layout.addStretch()
+        layout.addWidget(chiffre)
+        layout.addWidget(texte)
+        layout.addStretch()
+        self.chiffres[cle] = chiffre
+        return tuile
+
     def creer_tableau(self, entetes):
         tableau = QTableWidget(0, len(entetes))
         tableau.setHorizontalHeaderLabels(entetes)
         tableau.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         tableau.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        tableau.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        tableau.setShowGrid(False)
+        tableau.setWordWrap(False)
+        tableau.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         tableau.verticalHeader().hide()
-        tableau.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        tableau.verticalHeader().setDefaultSectionSize(40)
+        entete = tableau.horizontalHeader()
+        entete.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        entete.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        entete.setHighlightSections(False)
         return tableau
 
     def remplir(self, tableau, lignes, colonne_tri, ordre):
         tableau.setSortingEnabled(False)
         tableau.setRowCount(len(lignes))
+        gras = QFont(tableau.font())
+        gras.setWeight(QFont.Weight.DemiBold)
         for i, valeurs in enumerate(lignes):
             for j, valeur in enumerate(valeurs):
                 case = QTableWidgetItem()
                 case.setData(Qt.ItemDataRole.DisplayRole, valeur)
+                if j == 0:
+                    case.setFont(gras)
                 tableau.setItem(i, j, case)
         tableau.setSortingEnabled(True)
         tableau.sortItems(colonne_tri, ordre)
@@ -116,16 +188,21 @@ class PageEchanges(QWidget):
         version = "Foil" if foil else "Normale"
         if carte is None:
             return [carte_id, "?", version]
-        return [carte["nom"], f"{carte['set_nom']} n°{carte['numero']}", version]
+        return [carte["nom"], f"{carte['set_nom']} · {catalogue.code_affiche(carte)}", version]
+
+    def montrer_erreur(self, texte):
+        self.erreur.setText(texte)
+        self.erreur.setVisible(bool(texte))
 
     def actualiser(self):
         self.cartes = {carte["carte_id"]: carte for carte in catalogue.lister_cartes()}
-        self.erreur.setText("")
+        self.montrer_erreur("")
+        probleme = ""
         try:
             self.champ_contact.setText(supabase_client.lire_contact())
             echanges = supabase_client.lire_echanges()
         except supabase_client.ErreurSupabase as erreur:
-            self.erreur.setText(str(erreur))
+            probleme = str(erreur)
             echanges = []
         self.bouton_contact.setText("Enregistrer")
 
@@ -161,17 +238,24 @@ class PageEchanges(QWidget):
             Qt.SortOrder.DescendingOrder,
         )
 
-        if echanges:
-            self.resume.setText(
-                f"{len(recevoir)} carte(s) à recevoir et {len(donner)} à donner, "
-                f"avec {len(joueurs)} joueur(s)."
+        self.chiffres["recevoir"].setText(str(len(recevoir)))
+        self.chiffres["donner"].setText(str(len(donner)))
+        self.chiffres["joueurs"].setText(str(len(joueurs)))
+        for index, nombre in enumerate((len(joueurs), len(recevoir), len(donner))):
+            self.onglets.definir_nombre(index, nombre)
+
+        if probleme:
+            self.vide.definir(
+                "Impossible de charger les échanges",
+                f"{probleme} Vérifie ta connexion, puis clique sur Actualiser.",
+                "",
+                "circle-alert",
             )
         else:
-            self.resume.setText(
-                "Aucun échange possible pour l'instant. Clique sur une carte, puis coche "
-                "« Recherchée » pour celles qui te manquent et indique combien tu en as "
-                "« À échanger » pour tes doubles."
-            )
+            self.vide.definir(*AUCUN_ECHANGE)
+        for element in (self.onglets, self.pile):
+            element.setVisible(bool(echanges))
+        self.vide.setVisible(not echanges)
 
     def contact_modifie(self):
         self.bouton_contact.setText("Enregistrer")
@@ -182,9 +266,9 @@ class PageEchanges(QWidget):
                 self.collection.user_id, self.champ_contact.text().strip()
             )
         except supabase_client.ErreurSupabase as erreur:
-            self.erreur.setText(str(erreur))
+            self.montrer_erreur(str(erreur))
             return
-        self.erreur.setText("")
+        self.montrer_erreur("")
         self.bouton_contact.setText("Enregistré")
 
     def copier_liste(self):

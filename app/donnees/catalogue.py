@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from app.infos import CHEMIN_BASE, DOSSIER_ICONES, DOSSIER_IMAGES, DOSSIER_MINIATURES
 
 CODE_SIMPLE = re.compile(r"[a-z]+-(\d+)-(\d+)")
+CODE_COMPLET = re.compile(r"([a-z]+)-([^-]+)-(\d+)")
 RARETES_TOUJOURS_FOIL = ("Rare", "Epic", "Showcase")
 SETS_SANS_FOIL = ("OGS",)
 
@@ -125,6 +126,17 @@ def cartes_toujours_foil():
     with ouvrir_base() as base:
         lignes = base.execute("select carte_id, rarete, set_code from cartes").fetchall()
     return {ligne["carte_id"] for ligne in lignes if toujours_foil(ligne)}
+
+
+def code_affiche(carte, avec_total=False):
+    code = carte["code"] or ""
+    morceaux = CODE_COMPLET.fullmatch(code)
+    if morceaux is None:
+        return code.upper()
+    texte = f"{morceaux.group(1).upper()} {morceaux.group(2)}"
+    if avec_total:
+        texte += f" / {morceaux.group(3)}"
+    return texte
 
 
 def est_de_base(code):

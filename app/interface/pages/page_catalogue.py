@@ -1,9 +1,10 @@
 from PySide6.QtCore import QSettings, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QTabBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
 
 from app.donnees import catalogue
+from app.interface import theme
 from app.interface.composants.barre_filtres import BarreFiltres
-from app.interface.composants.elements import Titre
+from app.interface.composants.elements import Onglets, Titre
 from app.interface.composants.grille_cartes import ReglageTaille
 from app.interface.composants.zone_cartes import ZoneCartes
 
@@ -18,9 +19,7 @@ class PageCatalogue(QWidget):
         self.collection = collection
         self.sets = {}
 
-        self.onglets = QTabBar()
-        self.onglets.setDrawBase(False)
-        self.onglets.setExpanding(False)
+        self.onglets = Onglets()
         self.zone = ZoneCartes(collection)
         self.grille = self.zone.grille
         self.reglage = ReglageTaille(self.grille)
@@ -29,41 +28,44 @@ class PageCatalogue(QWidget):
         entete.addWidget(Titre("Catalogue"))
         entete.addStretch()
         entete.addWidget(self.reglage)
-        ligne_onglets = QHBoxLayout()
-        ligne_onglets.addWidget(self.onglets)
-        ligne_onglets.addStretch()
 
         self.texte_progression = QLabel("")
+        self.texte_progression.setObjectName("sous_titre")
         self.barre_progression = QProgressBar()
         self.barre_progression.setObjectName("fine")
         self.barre_progression.setTextVisible(False)
-        self.barre_progression.setFixedWidth(200)
-        self.compteur = QLabel("")
-        self.compteur.setObjectName("sous_titre")
+        self.barre_progression.setMinimumWidth(160)
+        self.pourcentage = QLabel("")
+        self.pourcentage.setObjectName("pourcentage")
 
         ligne_progression = QHBoxLayout()
+        ligne_progression.setSpacing(14)
         ligne_progression.addWidget(self.texte_progression)
-        ligne_progression.addSpacing(10)
-        ligne_progression.addWidget(self.barre_progression)
-        ligne_progression.addStretch()
-        ligne_progression.addWidget(self.compteur)
+        ligne_progression.addWidget(self.barre_progression, stretch=1)
+        ligne_progression.addWidget(self.pourcentage)
 
         self.barre_filtres = BarreFiltres()
+        self.compteur = QLabel("")
+        self.compteur.setObjectName("aide")
+        ligne_filtres = QHBoxLayout()
+        ligne_filtres.setSpacing(12)
+        ligne_filtres.addWidget(self.barre_filtres, stretch=1)
+        ligne_filtres.addWidget(self.compteur)
 
         self.haut = QWidget()
         layout_haut = QVBoxLayout(self.haut)
-        layout_haut.setContentsMargins(0, 0, 0, 0)
-        layout_haut.setSpacing(14)
+        layout_haut.setContentsMargins(0, 2, 0, 4)
+        layout_haut.setSpacing(16)
         layout_haut.addLayout(ligne_progression)
-        layout_haut.addWidget(self.barre_filtres)
+        layout_haut.addLayout(ligne_filtres)
         self.haut.hide()
-        self.zone.afficher([], ("Chargement du catalogue…",))
+        self.zone.afficher([], ("Chargement du catalogue…", "", "", "library-big"))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 22, 24, 12)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
         layout.addLayout(entete)
-        layout.addLayout(ligne_onglets)
+        layout.addWidget(self.onglets)
         layout.addWidget(self.haut)
         layout.addWidget(self.zone, stretch=1)
 
@@ -71,6 +73,7 @@ class PageCatalogue(QWidget):
         self.barre_filtres.filtres_changes.connect(self.afficher_cartes)
         self.zone.collection_modifiee.connect(self.actualiser_progression)
         self.zone.etat_vide.action.connect(self.barre_filtres.effacer)
+        theme.signaux().change.connect(self.actualiser_progression)
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -92,7 +95,7 @@ class PageCatalogue(QWidget):
         while self.onglets.count():
             self.onglets.removeTab(0)
         for nom in self.sets:
-            index = self.onglets.addTab(nom.upper())
+            index = self.onglets.addTab(nom)
             self.onglets.setTabData(index, nom)
             if nom == dernier:
                 self.onglets.setCurrentIndex(index)
@@ -131,27 +134,23 @@ class PageCatalogue(QWidget):
 
     def afficher_cartes(self):
         filtres = self.barre_filtres.filtres()
-        actifs = self.barre_filtres.actifs()
         for index in range(self.onglets.count()):
             nom = self.onglets.tabData(index)
-            if actifs:
-                nombre = sum(1 for carte in self.sets[nom] if self.correspond(carte, filtres))
-                self.onglets.setTabText(index, f"{nom.upper()} ({nombre})")
-            else:
-                self.onglets.setTabText(index, nom.upper())
+            nombre = sum(1 for carte in self.sets[nom] if self.correspond(carte, filtres))
+            self.onglets.definir_nombre(index, nombre)
 
         cartes = [carte for carte in self.cartes_du_set() if self.correspond(carte, filtres)]
-        self.compteur.setText(f"{len(cartes)} carte(s) affichée(s)")
+        self.compteur.setText(f"{len(cartes)} carte{'s' if len(cartes) > 1 else ''}")
         self.actualiser_progression()
 
         if not self.sets:
-            vide = ("Le catalogue est vide", "Mets-le à jour depuis la page Réglages.")
+            vide = ("Le catalogue est vide", "Mets-le à jour depuis la page Réglages.", "", "library-big")
         else:
             vide = (
                 "Aucune carte ne correspond à tes filtres",
-                "Les nombres entre parenthèses, dans les onglets, montrent les sets où il y en a.",
+                "Le nombre à côté du nom de chaque set montre où il y en a.",
                 "Effacer les filtres",
-                True,
+                "search",
             )
         self.zone.afficher(cartes, vide)
         self.haut.setVisible(bool(self.sets))
@@ -162,14 +161,18 @@ class PageCatalogue(QWidget):
         de_base = [carte for carte in cartes if catalogue.est_de_base(carte["code"])]
         base_possedees = sum(1 for carte in de_base if self.collection.quantite(carte["carte_id"]) > 0)
 
+        fort = f"color: {theme.TEXTE}; font-weight: 600"
+        separateur = f'<span style="color: {theme.TEXTE_ETEINT}">&nbsp;&nbsp;·&nbsp;&nbsp;</span>'
         if self.nom_set() == NOM_PROMOS or not de_base:
-            self.texte_progression.setText(f"{possedees} / {len(cartes)} cartes possédées")
-            self.barre_progression.setRange(0, max(len(cartes), 1))
-            self.barre_progression.setValue(possedees)
+            texte = f'<span style="{fort}">{possedees} / {len(cartes)}</span> cartes possédées'
+            valeur, total = possedees, len(cartes)
         else:
-            self.texte_progression.setText(
-                f"{base_possedees} / {len(de_base)} cartes de base  ·  "
-                f"{possedees} / {len(cartes)} avec les variantes"
+            texte = (
+                f'<span style="{fort}">{base_possedees} / {len(de_base)}</span> cartes de base'
+                f"{separateur}{possedees} / {len(cartes)} avec les variantes"
             )
-            self.barre_progression.setRange(0, len(de_base))
-            self.barre_progression.setValue(base_possedees)
+            valeur, total = base_possedees, len(de_base)
+        self.texte_progression.setText(texte)
+        self.barre_progression.setRange(0, max(total, 1))
+        self.barre_progression.setValue(valeur)
+        self.pourcentage.setText(f"{round(100 * valeur / total) if total else 0} %")

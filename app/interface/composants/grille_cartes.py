@@ -1,7 +1,7 @@
 import time
 
 from PySide6.QtCore import QEvent, QPointF, QRectF, QSettings, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QPainter, QPen, QPixmap
+from PySide6.QtGui import QBrush, QColor, QCursor, QFont, QLinearGradient, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.donnees.catalogue import code_affiche
 from app.donnees.images import ARRONDI, charger_miniature
 from app.interface import icones, theme
 from app.interface.composants.effets import (
@@ -33,12 +34,13 @@ LARGEUR_MAX = 280
 LARGEUR_DEFAUT = 160
 RAPPORT = 1.4
 MARGE = 8
-HAUTEUR_NOM = 24
+HAUTEUR_NOM = 36
 TEMPS_PAR_TOUR = 0.008
 AGRANDISSEMENT = 0.02
 OPACITE_MANQUANTE = 0.35
 OPACITE_MANQUANTE_SURVOL = 0.6
 ROLE_CARTE_ID = Qt.ItemDataRole.UserRole
+ROLE_CODE = Qt.ItemDataRole.UserRole + 1
 
 
 def lire_largeur():
@@ -96,9 +98,7 @@ class DelegueCarte(QStyledItemDelegate):
         peintre.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
         if selectionnee:
-            peintre.setPen(QPen(QColor(theme.OR), 1))
-            peintre.setBrush(QColor(theme.SURFACE_HAUTE))
-            peintre.drawRoundedRect(case.adjusted(2, 2, -2, -2), 10, 10)
+            self.dessiner_anneau(peintre, grille.zone_image(index.data(ROLE_CARTE_ID), QRectF(option.rect)))
 
         if index.row() not in grille.animations:
             self.dessiner_carte(peintre, index, QRectF(option.rect), None)
@@ -110,14 +110,35 @@ class DelegueCarte(QStyledItemDelegate):
         else:
             peintre.setPen(QColor(theme.TEXTE_DOUX))
         police = QFont(option.font)
-        police.setPixelSize(12)
+        police.setPixelSize(13)
+        police.setWeight(QFont.Weight.DemiBold)
         peintre.setFont(police)
         haut_texte = case.y() + MARGE + grille.hauteur() + grille.ecart_nom()
-        texte = QRectF(case.x() + 4, haut_texte, case.width() - 8, HAUTEUR_NOM)
+        texte = QRectF(case.x() + 4, haut_texte, case.width() - 8, 18)
         nom = peintre.fontMetrics().elidedText(index.data(), Qt.TextElideMode.ElideRight, int(texte.width()))
         peintre.drawText(texte, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, nom)
 
+        police.setPixelSize(11)
+        police.setWeight(QFont.Weight.Medium)
+        police.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.6)
+        peintre.setFont(police)
+        peintre.setPen(QColor(theme.TEXTE_ETEINT))
+        peintre.drawText(
+            QRectF(texte.x(), texte.bottom() + 1, texte.width(), 15),
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+            index.data(ROLE_CODE) or "",
+        )
+
         peintre.restore()
+
+    def dessiner_anneau(self, peintre, zone):
+        rayon = zone.width() * ARRONDI
+        peintre.setBrush(Qt.BrushStyle.NoBrush)
+        for ecart, epaisseur, alpha in ((6, 10, 26), (3.5, 5, 70)):
+            peintre.setPen(QPen(theme.couleur("OR", alpha), epaisseur))
+            peintre.drawRoundedRect(zone.adjusted(-ecart, -ecart, ecart, ecart), rayon + ecart, rayon + ecart)
+        peintre.setPen(QPen(theme.couleur("OR"), 2))
+        peintre.drawRoundedRect(zone.adjusted(-2, -2, 2, 2), rayon + 2, rayon + 2)
 
     def dessiner_carte(self, peintre, index, rect, inclinaison):
         grille = self.grille
@@ -154,13 +175,16 @@ class DelegueCarte(QStyledItemDelegate):
 
         if quantite > 0:
             self.dessiner_quantite(peintre, locale, quantite, foil)
+        elif grille.collection.correspond(carte_id, "recherchees"):
+            self.dessiner_recherchee(peintre, locale)
         peintre.restore()
 
     def dessiner_quantite(self, peintre, zone, quantite, foil):
-        hauteur = max(18, zone.width() * 0.13)
+        hauteur = max(16, zone.width() * 0.125)
         police = QFont(peintre.font())
         police.setPixelSize(round(hauteur * 0.6))
-        police.setBold(True)
+        police.setWeight(QFont.Weight.Bold)
+        police.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0)
         peintre.setFont(police)
         texte = f"×{quantite}"
         place_etoile = hauteur * 0.75 if foil else 0
@@ -171,26 +195,44 @@ class DelegueCarte(QStyledItemDelegate):
             largeur,
             hauteur,
         )
+        rayon = hauteur / 2
 
         peintre.setPen(Qt.PenStyle.NoPen)
         peintre.setBrush(QColor(0, 0, 0, 90))
-        peintre.drawRoundedRect(pastille.translated(0, 1.5), hauteur / 2, hauteur / 2)
-        fond = QColor(theme.FOND)
-        fond.setAlpha(235)
-        peintre.setBrush(fond)
+        peintre.drawRoundedRect(pastille.translated(0, 1.5), rayon, rayon)
+        contour = pastille.adjusted(-2, -2, 2, 2)
         if foil:
-            peintre.setPen(QPen(QBrush(arc_en_ciel(pastille.center())), 1.6))
+            peintre.setBrush(QBrush(arc_en_ciel(pastille.center())))
         else:
-            peintre.setPen(QPen(QColor(theme.OR), 1.4))
-        peintre.drawRoundedRect(pastille, hauteur / 2, hauteur / 2)
+            peintre.setBrush(QColor(theme.FOND))
+        peintre.drawRoundedRect(contour, rayon + 2, rayon + 2)
+        degrade = QLinearGradient(0, pastille.top(), 0, pastille.bottom())
+        degrade.setColorAt(0, QColor(theme.OR_HAUT))
+        degrade.setColorAt(1, QColor(theme.OR_BAS))
+        peintre.setBrush(degrade)
+        peintre.drawRoundedRect(pastille, rayon, rayon)
 
         zone_texte = QRectF(pastille)
         if foil:
             centre_etoile = QPointF(pastille.left() + hauteur * 0.62, pastille.center().y())
-            dessiner_etoile(peintre, centre_etoile, hauteur * 0.3, QBrush(arc_en_ciel(centre_etoile)))
+            dessiner_etoile(peintre, centre_etoile, hauteur * 0.3, QBrush(QColor(theme.ENCRE)))
             zone_texte.setLeft(pastille.left() + place_etoile * 0.9)
-        peintre.setPen(QColor(theme.TEXTE))
+        peintre.setPen(QColor(theme.ENCRE))
         peintre.drawText(zone_texte, Qt.AlignmentFlag.AlignCenter, texte)
+
+    def dessiner_recherchee(self, peintre, zone):
+        cote = max(18, zone.width() * 0.14)
+        cercle = QRectF(zone.right() - cote * 0.7, zone.bottom() - cote * 0.7, cote, cote)
+        peintre.setPen(Qt.PenStyle.NoPen)
+        peintre.setBrush(QColor(0, 0, 0, 90))
+        peintre.drawEllipse(cercle.translated(0, 1.5))
+        peintre.setBrush(QColor(theme.FOND))
+        peintre.drawEllipse(cercle.adjusted(-2, -2, 2, 2))
+        peintre.setBrush(QColor(theme.AZUR))
+        peintre.drawEllipse(cercle)
+        taille = round(cote * 0.55)
+        coeur = icones.pixmap("heart", "#ffffff", taille, rempli=True)
+        peintre.drawPixmap(QPointF(cercle.center().x() - taille / 2, cercle.center().y() - taille / 2 + 0.5), coeur)
 
 
 class GrilleCartes(QListWidget):
@@ -350,8 +392,9 @@ class GrilleCartes(QListWidget):
         for carte in cartes:
             element = QListWidgetItem(carte["nom"])
             element.setData(ROLE_CARTE_ID, carte["carte_id"])
+            element.setData(ROLE_CODE, code_affiche(carte))
             element.setToolTip(
-                f"{carte['nom']}\n{carte['set_nom']} - n°{carte['numero']}\n{carte['rarete']}"
+                f"{carte['nom']}\n{carte['set_nom']} · {code_affiche(carte, True)}\n{carte['rarete']}"
             )
             self.addItem(element)
 
