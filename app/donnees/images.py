@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QRectF, Qt, QUrl, QUrlQuery, Signal
-from PySide6.QtGui import QBrush, QImage, QPainter
+from PySide6.QtGui import QBrush, QImage, QPainter, QTransform
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 
 from app.infos import DOSSIER_ICONES, DOSSIER_IMAGES, DOSSIER_MINIATURES
@@ -73,6 +73,8 @@ def charger_miniature(url, taille):
     image = QImage(str(fichier_miniature(url)))
     if image.isNull():
         return None
+    if image.width() > image.height():
+        image = image.transformed(QTransform().rotate(-90))
     image = image.scaled(
         taille,
         Qt.AspectRatioMode.KeepAspectRatio,

@@ -13,8 +13,9 @@ from PySide6.QtWidgets import (
 )
 
 from app.donnees import catalogue
-from app.donnees.classeurs import decrire_position, position
+from app.donnees.classeurs import decrire_position, position, quantites
 from app.donnees.collection import version_vide
+from app.donnees.decks import NOMS_ZONES
 from app.donnees.images import (
     DELAI_MAX,
     LARGEUR_GRANDE,
@@ -25,7 +26,7 @@ from app.donnees.images import (
     url_redimensionnee,
 )
 from app.interface import icones, theme
-from app.interface.composants.elements import Filet, Flux, Interrupteur, Statut, Titre
+from app.interface.composants.elements import Filet, Flux, Interrupteur, Segments, Statut, Titre
 from app.interface.composants.image_carte import ImageCarte
 
 COULEURS = dict(theme.DOMAINES + theme.RARETES)
@@ -37,7 +38,7 @@ EMPLACEMENTS_MONTRES = 3
 
 def menu_ranger(menu, classeurs, carte_id):
     deja = {}
-    for classeur, pochette in classeurs.emplacements(carte_id):
+    for classeur, pochette, _ in classeurs.emplacements(carte_id):
         deja.setdefault(classeur["id"], pochette)
     actions = {}
     for classeur in classeurs.liste:
@@ -61,6 +62,25 @@ def ranger(classeurs, classeur_id, carte_id):
         classeurs.message.emit(
             f"{carte['nom']} rangée dans « {classeur['nom']} » : {decrire_position(classeur, pochette)}."
         )
+
+
+def menu_decks(menu, decks, carte_id):
+    actions = {}
+    utilisations = {deck["id"]: quantite for deck, quantite in decks.utilisations(carte_id)}
+    for deck in decks.liste:
+        texte = deck["nom"]
+        if deck["id"] in utilisations:
+            texte += f"  ·  déjà ×{utilisations[deck['id']]}"
+        actions[menu.addAction(texte)] = deck["id"]
+    return actions
+
+
+def ajouter_au_deck(decks, deck_id, carte_id):
+    zone = decks.ajouter(deck_id, carte_id)
+    deck = decks.deck(deck_id)
+    carte = decks.cartes().get(carte_id)
+    if zone is not None and deck is not None and carte is not None:
+        decks.message.emit(f"{carte['nom']} ajoutée au deck « {deck['nom']} » ({NOMS_ZONES[zone].lower()}).")
 
 
 def image_icone(nom, ratio):
@@ -156,18 +176,22 @@ class PanneauCarte(QFrame):
     ferme = Signal()
     modifiee = Signal(str)
 
-    def __init__(self, collection, classeurs=None, parent=None):
+    def __init__(self, collection, classeurs=None, decks=None, parent=None):
         super().__init__(parent)
         self.setObjectName("panneau")
         self.setFixedWidth(LARGEUR)
         self.collection = collection
         self.classeurs = classeurs
+        self.decks = decks
         self.carte = None
         self.seule_foil = False
         self.versions = {}
         self.compteurs = {}
         self.interrupteurs = {}
         self.lignes = {}
+        self.pile = []
+        self.version_pile = "toutes"
+        self.choix_pile = None
         self.reseau = QNetworkAccessManager(self)
         self.reponse = None
 
@@ -183,6 +207,17 @@ class PanneauCarte(QFrame):
         haut.addWidget(self.code)
         haut.addStretch()
         haut.addWidget(bouton_fermer)
+
+        self.zone_pile = QWidget()
+        self.ligne_pile = QHBoxLayout(self.zone_pile)
+        self.ligne_pile.setContentsMargins(0, 0, 0, 0)
+        self.ligne_pile.setSpacing(10)
+        titre_pile = QLabel("Versions")
+        titre_pile.setObjectName("entete_tableau")
+        titre_pile.setToolTip("Les versions de cette carte rangées dans la même pochette")
+        self.ligne_pile.addWidget(titre_pile)
+        self.ligne_pile.addStretch()
+        self.zone_pile.hide()
 
         self.image = ImageCarte()
         self.nom = QLabel("")
@@ -246,6 +281,27 @@ class PanneauCarte(QFrame):
         disposition_classeurs.addLayout(self.lignes_classeurs)
         self.section_classeurs.hide()
 
+        self.section_decks = QWidget()
+        self.bouton_deck = QPushButton("")
+        self.bouton_deck.setObjectName("icone")
+        self.bouton_deck.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.bouton_deck.setToolTip("Ajouter à un deck")
+        icones.lier(self.bouton_deck, "layers", 16, "OR_CLAIR", "OR_CLAIR")
+        self.bouton_deck.clicked.connect(self.ouvrir_menu_decks)
+        entete_decks = QHBoxLayout()
+        entete_decks.setSpacing(10)
+        entete_decks.addWidget(Titre("Dans mes decks", "titre_section"))
+        entete_decks.addWidget(Filet(), stretch=1, alignment=Qt.AlignmentFlag.AlignVCenter)
+        entete_decks.addWidget(self.bouton_deck)
+        self.lignes_decks = QVBoxLayout()
+        self.lignes_decks.setSpacing(2)
+        disposition_decks = QVBoxLayout(self.section_decks)
+        disposition_decks.setContentsMargins(0, 0, 0, 0)
+        disposition_decks.setSpacing(4)
+        disposition_decks.addLayout(entete_decks)
+        disposition_decks.addLayout(self.lignes_decks)
+        self.section_decks.hide()
+
         self.bouton_prix = QPushButton("Voir le prix sur TCGplayer")
         self.bouton_prix.setCursor(Qt.CursorShape.PointingHandCursor)
         self.bouton_prix.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
@@ -258,6 +314,7 @@ class PanneauCarte(QFrame):
         layout.setContentsMargins(20, 6, 16, 12)
         layout.setSpacing(12)
         layout.addLayout(haut)
+        layout.addWidget(self.zone_pile)
         layout.addWidget(self.image, stretch=1)
         layout.addWidget(self.nom)
         layout.addLayout(meta)
@@ -268,6 +325,7 @@ class PanneauCarte(QFrame):
         layout.addWidget(self.statut)
         layout.addWidget(self.message)
         layout.addWidget(self.section_classeurs)
+        layout.addWidget(self.section_decks)
         layout.addStretch()
         layout.addWidget(self.bouton_prix)
 
@@ -297,6 +355,8 @@ class PanneauCarte(QFrame):
         self.collection.envoi_echoue.connect(self.envoi_echoue)
         if self.classeurs is not None:
             self.classeurs.change.connect(self.afficher_classeurs)
+        if self.decks is not None:
+            self.decks.change.connect(self.afficher_decks)
 
     def creer_ligne(self, tableau, ligne, foil, texte, nom_icone):
         quantite = Compteur()
@@ -328,6 +388,8 @@ class PanneauCarte(QFrame):
         self.lignes[foil] = (libelle, quantite, a_echanger, recherche)
 
     def afficher(self, carte_id):
+        if carte_id not in self.pile:
+            self.definir_pile([])
         if self.carte is not None and self.carte["carte_id"] == carte_id:
             return
         self.enregistrer_maintenant()
@@ -341,7 +403,46 @@ class PanneauCarte(QFrame):
         self.message.hide()
         self.recharger()
         self.afficher_classeurs()
+        self.afficher_decks()
         self.charger_image()
+        if self.choix_pile is not None:
+            self.choix_pile.definir(carte_id)
+
+    def definir_pile(self, pile, version="toutes"):
+        pile = list(pile) if len(pile) > 1 else []
+        if pile != self.pile:
+            if self.choix_pile is not None:
+                self.ligne_pile.removeWidget(self.choix_pile)
+                self.choix_pile.hide()
+                self.choix_pile.deleteLater()
+                self.choix_pile = None
+            self.pile = pile
+            if pile:
+                choix = [(carte_id, catalogue.numero_court(catalogue.lire_carte(carte_id))) for carte_id in pile]
+                self.choix_pile = Segments(choix)
+                for carte_id, bouton in self.choix_pile.boutons.items():
+                    bouton.setProperty("numero", bouton.text())
+                    bouton.setToolTip(f"Voir {catalogue.code_affiche(catalogue.lire_carte(carte_id))}")
+                self.choix_pile.change.connect(self.choisir_dans_pile)
+                self.ligne_pile.insertWidget(1, self.choix_pile)
+            self.zone_pile.setVisible(bool(pile))
+        self.version_pile = version
+        if self.choix_pile is not None and self.carte is not None:
+            self.choix_pile.definir(self.carte["carte_id"])
+        self.afficher_pile()
+
+    def choisir_dans_pile(self):
+        carte_id = self.choix_pile.valeur()
+        if carte_id:
+            self.afficher(carte_id)
+
+    def afficher_pile(self):
+        if self.choix_pile is None:
+            return
+        for carte_id, bouton in self.choix_pile.boutons.items():
+            quantite = quantites(self.collection, carte_id, self.version_pile)[0]
+            numero = bouton.property("numero")
+            bouton.setText(f"{numero}  ×{quantite}" if quantite else numero)
 
     def afficher_classeurs(self):
         utile = (
@@ -359,8 +460,8 @@ class PanneauCarte(QFrame):
                 element.widget().hide()
                 element.widget().deleteLater()
         emplacements = self.classeurs.emplacements(self.carte["carte_id"])
-        for classeur, pochette in emplacements[:EMPLACEMENTS_MONTRES]:
-            self.lignes_classeurs.addWidget(self.ligne_classeur(classeur, pochette))
+        for classeur, pochette, empilee in emplacements[:EMPLACEMENTS_MONTRES]:
+            self.lignes_classeurs.addWidget(self.ligne_classeur(classeur, pochette, empilee))
         reste = len(emplacements) - EMPLACEMENTS_MONTRES
         if reste > 0:
             self.lignes_classeurs.addWidget(etiquette("aide", f"et {reste} autre{'s' if reste > 1 else ''} pochette{'s' if reste > 1 else ''}"))
@@ -369,14 +470,20 @@ class PanneauCarte(QFrame):
             texte.setObjectName("aide")
             self.lignes_classeurs.addWidget(texte)
 
-    def ligne_classeur(self, classeur, pochette):
+    def ligne_classeur(self, classeur, pochette, empilee=False):
         ligne = QWidget()
         disposition = QHBoxLayout(ligne)
         disposition.setContentsMargins(0, 0, 0, 0)
         disposition.setSpacing(8)
         icone = QLabel()
         icones.lier_image(icone, "map-pin", 14, "OR_CLAIR")
-        texte = QLabel(f"<b>{classeur['nom']}</b> · {decrire_position(classeur, pochette)}")
+        description = f"<b>{classeur['nom']}</b> · {decrire_position(classeur, pochette)}"
+        if empilee:
+            element = self.classeurs.contenu(classeur["id"]).get(pochette)
+            voisine = catalogue.lire_carte(element["carte_id"]) if element else None
+            if voisine is not None:
+                description += f", avec {catalogue.code_affiche(voisine)}"
+        texte = QLabel(description)
         texte.setObjectName("emplacement")
         texte.setWordWrap(True)
         voir = QPushButton("Voir")
@@ -388,6 +495,62 @@ class PanneauCarte(QFrame):
         disposition.addWidget(texte, stretch=1)
         disposition.addWidget(voir, alignment=Qt.AlignmentFlag.AlignTop)
         return ligne
+
+    def afficher_decks(self):
+        utile = (
+            self.carte is not None
+            and self.decks is not None
+            and self.decks.chargee
+            and bool(self.decks.liste)
+        )
+        self.section_decks.setVisible(utile)
+        if not utile:
+            return
+        while self.lignes_decks.count():
+            element = self.lignes_decks.takeAt(0)
+            if element.widget() is not None:
+                element.widget().hide()
+                element.widget().deleteLater()
+        utilisations = self.decks.utilisations(self.carte["carte_id"])
+        for deck, quantite in utilisations:
+            self.lignes_decks.addWidget(self.ligne_deck(deck, quantite))
+        if not utilisations:
+            texte = QLabel("Cette carte n'est dans aucun deck.")
+            texte.setObjectName("aide")
+            self.lignes_decks.addWidget(texte)
+
+    def ligne_deck(self, deck, quantite):
+        ligne = QWidget()
+        disposition = QHBoxLayout(ligne)
+        disposition.setContentsMargins(0, 0, 0, 0)
+        disposition.setSpacing(8)
+        icone = QLabel()
+        icones.lier_image(icone, "layers", 14, "OR_CLAIR")
+        description = f"<b>{deck['nom']}</b> · {quantite} exemplaire{'s' if quantite > 1 else ''}"
+        if deck["monte"]:
+            description += " · monté"
+        texte = QLabel(description)
+        texte.setObjectName("emplacement")
+        texte.setWordWrap(True)
+        voir = QPushButton("Voir")
+        voir.setObjectName("lien")
+        voir.setCursor(Qt.CursorShape.PointingHandCursor)
+        voir.setToolTip("Ouvrir le deck")
+        voir.clicked.connect(lambda: self.decks.ouverture_demandee.emit(deck["id"]))
+        disposition.addWidget(icone, alignment=Qt.AlignmentFlag.AlignTop)
+        disposition.addWidget(texte, stretch=1)
+        disposition.addWidget(voir, alignment=Qt.AlignmentFlag.AlignTop)
+        return ligne
+
+    def ouvrir_menu_decks(self):
+        if self.carte is None:
+            return
+        menu = theme.creer_menu(self)
+        actions = menu_decks(menu, self.decks, self.carte["carte_id"])
+        choix = menu.exec(self.bouton_deck.mapToGlobal(self.bouton_deck.rect().bottomLeft()))
+        menu.deleteLater()
+        if choix in actions:
+            ajouter_au_deck(self.decks, actions[choix], self.carte["carte_id"])
 
     def ouvrir_menu_ranger(self):
         if self.carte is None:
@@ -479,6 +642,7 @@ class PanneauCarte(QFrame):
         self.minuteur_etat.stop()
         self.statut.definir("envoi", "Enregistrement…")
         self.modifiee.emit(carte_id)
+        self.afficher_pile()
 
     def montre(self, carte_id):
         return self.carte is not None and self.carte["carte_id"] == carte_id

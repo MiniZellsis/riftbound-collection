@@ -37,16 +37,31 @@ Au premier lancement, Windows peut afficher « Windows a protégé votre ordinat
 
 - **Nouveau classeur :** choisis le même format que ton vrai classeur (pochettes par page et capacité) et sa couleur.
 - **Remplir :** le logiciel range tes cartes dans l'ordre (set, puis numéro). Tu peux aussi garder une pochette vide pour chaque carte qui te manque.
+- **Variantes :** par défaut, les arts alternatifs et les signatures vont dans la même pochette que la carte de base (OGN 030a et OGN 030b avec OGN 030). La pochette montre alors une petite pile, et le détail affiche une ligne **Versions** pour passer de l'une à l'autre. Tu peux aussi choisir « Dans leur propre pochette ».
+- Une variante rangée à la main dans une autre pochette sort de la pile. Les cartes surnumérotées (OGN 299 / 298) gardent leur propre pochette.
+- **À la suite des cartes rangées :** seules les cartes qui ne sont pas encore dans le classeur sont ajoutées.
 - **À la main :** double-clic sur une pochette vide pour y placer une carte, glisser-déposer pour déplacer une carte, Suppr pour vider une pochette.
 - Le nombre sur une pochette (×2, ×3) est celui de ta collection : rien à saisir deux fois.
 - Dans le détail d'une carte, la partie **Dans mes classeurs** dit où elle est rangée (page, rangée, colonne). « Voir » ouvre le classeur à la bonne page.
+- **Les cartes d'arènes** sont tournées pour tenir debout dans les pochettes et dans les grilles.
+
+### Decks
+
+- **Nouveau deck :** choisis d'abord la légende (elle donne les domaines du deck), puis ajoute les cartes depuis « Ajouter » (double-clic). Le champion choisi est pris tout seul parmi les champions de ta légende.
+- **Importer :** colle une liste copiée sur un site de decks (Piltover Archive, les « Top Decks » de Riot…) ou un code de deck. Le logiciel dit quelles lignes il n'a pas reconnues.
+- **Règles :** le logiciel vérifie le deck (40 cartes avec le champion, 12 runes, 3 arènes de noms différents, 3 exemplaires au plus, domaines de la légende, réserve de 8 cartes au plus). Il prévient, mais ne bloque rien.
+- **Stats :** la courbe de coût et le nombre d'unités, de sorts et d'équipements.
+- **À sortir :** où sont les cartes du deck dans tes classeurs, dans l'ordre des pages. « Voir » ouvre le classeur avec les cartes du deck entourées en or (tu peux aussi choisir le deck dans la liste « Surligner un deck » de la page Classeurs).
+- **Manquantes :** les cartes qui te manquent (toutes versions comprises). Un bouton les marque comme recherchées, pour les échanges.
+- **Monté :** quand tu montes le deck avec tes vraies cartes, coche « Monté ». Ses cartes sont alors signalées dans tes classeurs (petit badge) et dans le détail des cartes (partie **Dans mes decks**).
+- Clic droit sur une carte du catalogue ou de ta collection → **Ajouter à un deck**.
 
 ### Raccourcis clavier
 
 | Touches | Action |
 |---|---|
 | Ctrl+F | Rechercher une carte |
-| Ctrl+1 à Ctrl+6 | Changer de page |
+| Ctrl+1 à Ctrl+7 | Changer de page |
 | Flèches | Passer d'une carte ou d'une pochette à l'autre |
 | Page préc. / Page suiv. | Tourner les pages d'un classeur |
 | Suppr | Vider la pochette choisie |

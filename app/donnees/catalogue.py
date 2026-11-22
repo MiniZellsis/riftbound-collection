@@ -6,8 +6,15 @@ from app.infos import CHEMIN_BASE, DOSSIER_ICONES, DOSSIER_IMAGES, DOSSIER_MINIA
 
 CODE_SIMPLE = re.compile(r"[a-z]+-(\d+)-(\d+)")
 CODE_COMPLET = re.compile(r"([a-z]+)-([^-]+)-(\d+)")
+CHIFFRES = re.compile(r"\d+")
 RARETES_TOUJOURS_FOIL = ("Rare", "Epic", "Showcase")
 SETS_SANS_FOIL = ("OGS",)
+COLONNES_AJOUTEES = {
+    "cout": "integer",
+    "puissance": "integer",
+    "supertype": "text",
+    "tags": "text",
+}
 
 
 @contextmanager
@@ -41,9 +48,22 @@ def creer_base():
                 art_alternatif integer not null default 0,
                 signature      integer not null default 0,
                 surnumerotee   integer not null default 0,
-                tcgplayer_id   text
+                tcgplayer_id   text,
+                cout           integer,
+                puissance      integer,
+                supertype      text,
+                tags           text
             )
         """)
+        presentes = {ligne["name"] for ligne in base.execute("pragma table_info(cartes)")}
+        for nom, genre in COLONNES_AJOUTEES.items():
+            if nom not in presentes:
+                base.execute(f"alter table cartes add column {nom} {genre}")
+
+
+def donnees_incompletes():
+    with ouvrir_base() as base:
+        return base.execute("select exists (select 1 from cartes where tags is null)").fetchone()[0] == 1
 
 
 def _convertir(item):
@@ -51,6 +71,7 @@ def _convertir(item):
     infos_set = item.get("set") or {}
     media = item.get("media") or {}
     meta = item.get("metadata") or {}
+    attributs = item.get("attributes") or {}
     return {
         "carte_id": item["id"],
         "code": item["riftbound_id"],
@@ -66,6 +87,10 @@ def _convertir(item):
         "signature": bool(meta.get("signature")),
         "surnumerotee": bool(meta.get("overnumbered")),
         "tcgplayer_id": item.get("tcgplayer_id"),
+        "cout": attributs.get("energy"),
+        "puissance": attributs.get("might"),
+        "supertype": classement.get("supertype"),
+        "tags": ", ".join(item.get("tags") or []),
     }
 
 
@@ -76,11 +101,11 @@ def enregistrer_cartes(items):
             insert or replace into cartes (
                 carte_id, code, nom, set_code, set_nom, numero, rarete, type,
                 domaines, image_url, art_alternatif, signature, surnumerotee,
-                tcgplayer_id
+                tcgplayer_id, cout, puissance, supertype, tags
             ) values (
                 :carte_id, :code, :nom, :set_code, :set_nom, :numero, :rarete, :type,
                 :domaines, :image_url, :art_alternatif, :signature, :surnumerotee,
-                :tcgplayer_id
+                :tcgplayer_id, :cout, :puissance, :supertype, :tags
             )
         """, lignes)
 
@@ -105,7 +130,7 @@ def lister_cartes():
     with ouvrir_base() as base:
         return base.execute("""
             select carte_id, code, nom, set_code, set_nom, numero, rarete, type,
-                   domaines, image_url
+                   domaines, image_url, cout, supertype, tags
             from cartes
             order by set_nom like '%Promotional%', set_code, numero, code
         """).fetchall()
@@ -144,6 +169,49 @@ def code_affiche(carte, avec_total=False):
     if avec_total:
         texte += f" / {morceaux.group(3)}"
     return texte
+
+
+def numero_court(carte):
+    morceaux = CODE_COMPLET.fullmatch(carte["code"] or "")
+    return morceaux.group(2) if morceaux else code_affiche(carte)
+
+
+def decouper_code(code):
+    morceaux = CODE_COMPLET.fullmatch(code or "")
+    if morceaux is None:
+        return None
+    chiffres = CHIFFRES.match(morceaux.group(2))
+    if chiffres is None:
+        return None
+    return morceaux.group(1), int(chiffres.group()), morceaux.group(2)[chiffres.end():], int(morceaux.group(3))
+
+
+def est_variante(code):
+    morceaux = decouper_code(code)
+    return morceaux is not None and morceaux[2] != ""
+
+
+def est_surnumerotee(code):
+    morceaux = decouper_code(code)
+    return morceaux is not None and morceaux[1] > morceaux[3]
+
+
+def groupes_numeros(cartes):
+    groupes = {}
+    for carte in cartes:
+        morceaux = decouper_code(carte["code"])
+        if morceaux is not None:
+            cle = (groupe_set(carte["set_nom"]), carte["set_code"], morceaux[0], morceaux[1])
+            groupes.setdefault(cle, []).append(carte)
+    membres = {}
+    for groupe in groupes.values():
+        if len(groupe) < 2:
+            continue
+        groupe.sort(key=lambda carte: (est_variante(carte["code"]), carte["code"]))
+        identifiants = [carte["carte_id"] for carte in groupe]
+        for carte_id in identifiants:
+            membres[carte_id] = identifiants
+    return membres
 
 
 def est_de_base(code):

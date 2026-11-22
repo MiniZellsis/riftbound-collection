@@ -11,6 +11,7 @@ ECART_TEXTE = 4
 _pixmaps = {}
 _liens = []
 _branche = False
+_seuil = [500]
 
 
 def pixmap(nom, couleur, taille, rempli=False, marge=0):
@@ -57,6 +58,9 @@ def _brancher():
     if not _branche:
         theme.signaux().change.connect(rafraichir)
         _branche = True
+    if len(_liens) > _seuil[0]:
+        _liens[:] = [lien for lien in _liens if isValid(lien[0])]
+        _seuil[0] = max(500, 2 * len(_liens))
 
 
 def lier(cible, nom, taille=18, normal="TEXTE_DOUX", actif="OR"):

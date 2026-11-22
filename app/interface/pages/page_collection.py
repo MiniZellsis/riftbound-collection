@@ -26,12 +26,12 @@ VIDE = (
 class PageCollection(QWidget):
     catalogue_demande = Signal()
 
-    def __init__(self, collection, classeurs=None, parent=None):
+    def __init__(self, collection, classeurs=None, decks=None, parent=None):
         super().__init__(parent)
         self.collection = collection
 
         titre = Titre("Ma collection")
-        self.zone = ZoneCartes(collection, classeurs)
+        self.zone = ZoneCartes(collection, classeurs, decks)
         self.grille = self.zone.grille
         self.reglage = ReglageTaille(self.grille)
 

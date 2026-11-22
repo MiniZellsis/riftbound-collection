@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from app.donnees import catalogue, supabase_client
 from app.donnees.classeurs import Classeurs
 from app.donnees.collection import Collection
+from app.donnees.decks import Decks
 from app.donnees.images import TelechargementImages
 from app.donnees.import_catalogue import ImportCatalogue
 from app.donnees.mises_a_jour import VerificationMiseAJour
@@ -26,15 +27,17 @@ from app.interface.composants.elements import THEMES, Avatar, BoutonMenu, ChoixT
 from app.interface.pages.page_catalogue import PageCatalogue
 from app.interface.pages.page_classeurs import PageClasseurs
 from app.interface.pages.page_collection import PageCollection
+from app.interface.pages.page_decks import PageDecks
 from app.interface.pages.page_echanges import PageEchanges
 from app.interface.pages.page_progression import PageProgression
 from app.interface.pages.page_reglages import PageReglages
 
-PAGES = ["Catalogue", "Ma collection", "Classeurs", "Échanges", "Progression", "Réglages"]
+PAGES = ["Catalogue", "Ma collection", "Classeurs", "Decks", "Échanges", "Progression", "Réglages"]
 ICONES_PAGES = {
     "Catalogue": "library-big",
     "Ma collection": "gem",
     "Classeurs": "book-open",
+    "Decks": "layers",
     "Échanges": "arrow-left-right",
     "Progression": "trophy",
     "Réglages": "settings",
@@ -132,6 +135,7 @@ class FenetrePrincipale(QMainWindow):
 
         self.collection = Collection(user_id)
         self.classeurs = Classeurs(user_id)
+        self.decks = Decks(user_id)
         self.pseudo = None
         self.verification_manuelle = False
         erreur_chargement = ""
@@ -142,12 +146,15 @@ class FenetrePrincipale(QMainWindow):
             erreur_chargement = str(erreur)
         if self.collection.chargee:
             self.classeurs.charger()
+            self.decks.charger()
         else:
             self.classeurs.erreur = f"Classeurs indisponibles : {erreur_chargement}"
+            self.decks.erreur = f"Decks indisponibles : {erreur_chargement}"
 
-        self.page_catalogue = PageCatalogue(self.collection, self.classeurs)
-        self.page_collection = PageCollection(self.collection, self.classeurs)
-        self.page_classeurs = PageClasseurs(self.collection, self.classeurs)
+        self.page_catalogue = PageCatalogue(self.collection, self.classeurs, self.decks)
+        self.page_collection = PageCollection(self.collection, self.classeurs, self.decks)
+        self.page_classeurs = PageClasseurs(self.collection, self.classeurs, self.decks)
+        self.page_decks = PageDecks(self.collection, self.classeurs, self.decks)
         self.page_echanges = PageEchanges(self.collection, self.pseudo)
         self.page_progression = PageProgression(self.collection)
         self.page_reglages = PageReglages(self.pseudo)
@@ -183,6 +190,7 @@ class FenetrePrincipale(QMainWindow):
         layout_barre.addWidget(self.ajouter_page("Catalogue", self.page_catalogue, False))
         layout_barre.addWidget(self.ajouter_page("Ma collection", self.page_collection, True))
         layout_barre.addWidget(self.ajouter_page("Classeurs", self.page_classeurs, True))
+        layout_barre.addWidget(self.ajouter_page("Decks", self.page_decks, True))
         separateur = Separateur()
         separateur.setContentsMargins(0, 0, 0, 0)
         layout_barre.addSpacing(6)
@@ -252,6 +260,7 @@ class FenetrePrincipale(QMainWindow):
         self.telechargement.image_prete.connect(self.page_catalogue.grille.image_telechargee)
         self.telechargement.image_prete.connect(self.page_collection.grille.image_telechargee)
         self.telechargement.image_prete.connect(self.page_classeurs.vue.image_telechargee)
+        self.telechargement.image_prete.connect(self.page_decks.ajout.grille.image_telechargee)
         self.telechargement.image_prete.connect(self.page_catalogue.barre_filtres.icone_telechargee)
         self.page_catalogue.set_affiche.connect(self.telechargement.prioriser)
 
@@ -265,13 +274,18 @@ class FenetrePrincipale(QMainWindow):
         self.classeurs.envoi_reussi.connect(lambda: self.carte_joueur.definir_etat("ok"))
         self.classeurs.message.connect(lambda texte: self.statusBar().showMessage(texte, 6000))
         self.classeurs.ouverture_demandee.connect(self.ouvrir_classeur)
+        self.decks.envoi_echoue.connect(self.envoi_deck_echoue)
+        self.decks.envoi_reussi.connect(lambda: self.carte_joueur.definir_etat("ok"))
+        self.decks.message.connect(lambda texte: self.statusBar().showMessage(texte, 6000))
+        self.decks.ouverture_demandee.connect(self.ouvrir_deck)
+        self.decks.surlignage_demande.connect(self.surligner_deck)
 
         self.verification = VerificationMiseAJour(self)
         self.verification.resultat.connect(self.verification_terminee)
         self.page_reglages.verification_demandee.connect(self.verification.verifier)
         QTimer.singleShot(DELAI_VERIFICATION, self.verification.verifier)
 
-        if catalogue.nombre_cartes() == 0:
+        if catalogue.nombre_cartes() == 0 or catalogue.donnees_incompletes():
             self.mettre_a_jour_catalogue()
         else:
             self.preparer_catalogue()
@@ -357,6 +371,18 @@ class FenetrePrincipale(QMainWindow):
         self.aller_a("Classeurs")
         self.page_classeurs.montrer(classeur_id, pochette)
 
+    def envoi_deck_echoue(self, erreur):
+        self.carte_joueur.definir_etat("erreur")
+        self.statusBar().showMessage(f"⚠ Deck pas enregistré. {erreur}", 15000)
+
+    def ouvrir_deck(self, deck_id):
+        self.aller_a("Decks")
+        self.page_decks.montrer(deck_id)
+
+    def surligner_deck(self, deck_id, classeur_id, pochette):
+        self.aller_a("Classeurs")
+        self.page_classeurs.surligner_deck(deck_id, classeur_id, pochette)
+
     def enregistrer_en_attente(self):
         self.page_catalogue.zone.enregistrer_maintenant()
         self.page_collection.zone.enregistrer_maintenant()
@@ -366,7 +392,8 @@ class FenetrePrincipale(QMainWindow):
         self.enregistrer_en_attente()
         collection_ok = self.collection.attendre_envois()
         classeurs_ok = self.classeurs.attendre_envois()
-        if not (collection_ok and classeurs_ok):
+        decks_ok = self.decks.attendre_envois()
+        if not (collection_ok and classeurs_ok and decks_ok):
             QMessageBox.warning(
                 self,
                 "Collection",
@@ -374,6 +401,7 @@ class FenetrePrincipale(QMainWindow):
             )
         self.collection.arreter()
         self.classeurs.arreter()
+        self.decks.arreter()
 
     def preparer_catalogue(self):
         nombre = self.telechargement.demarrer(catalogue.lister_cartes())
@@ -422,6 +450,8 @@ class FenetrePrincipale(QMainWindow):
         QMessageBox.warning(self, "Catalogue", message)
 
     def fin_import(self):
+        self.classeurs.oublier_groupes()
+        self.decks.oublier_catalogue()
         self.barre_progression.hide()
         self.page_reglages.bouton_maj.setEnabled(True)
         self.preparer_catalogue()

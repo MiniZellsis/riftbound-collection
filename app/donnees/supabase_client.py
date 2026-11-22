@@ -309,3 +309,67 @@ def supprimer_pochettes(classeur_id, pochettes=None):
             .eq("classeur_id", classeur_id)
             .in_("pochette", pochettes[debut:debut + LIGNES_PAR_ENVOI])
         )
+
+
+def lire_decks():
+    decks = _lire_par_pages(
+        lambda: _client.table("decks")
+        .select("id, nom, monte")
+        .order("cree_le")
+        .order("id")
+    )
+    cartes = _lire_par_pages(
+        lambda: _client.table("deck_cartes")
+        .select("deck_id, zone, carte_id, quantite")
+        .order("deck_id")
+        .order("zone")
+        .order("carte_id")
+    )
+    return decks, cartes
+
+
+def enregistrer_deck(user_id, deck):
+    _executer(
+        _client.table("decks").upsert(
+            {"user_id": user_id, **deck}, returning=ReturnMethod.minimal
+        )
+    )
+
+
+def supprimer_deck(deck_id):
+    _executer(
+        _client.table("decks").delete(returning=ReturnMethod.minimal).eq("id", deck_id)
+    )
+
+
+def enregistrer_cartes_deck(lignes):
+    for debut in range(0, len(lignes), LIGNES_PAR_ENVOI):
+        _executer(
+            _client.table("deck_cartes").upsert(
+                lignes[debut:debut + LIGNES_PAR_ENVOI],
+                on_conflict="deck_id,zone,carte_id",
+                returning=ReturnMethod.minimal,
+            )
+        )
+
+
+def supprimer_cartes_deck(deck_id, cles=None):
+    if cles is None:
+        _executer(
+            _client.table("deck_cartes")
+            .delete(returning=ReturnMethod.minimal)
+            .eq("deck_id", deck_id)
+        )
+        return
+    par_zone = {}
+    for zone, carte_id in cles:
+        par_zone.setdefault(zone, []).append(carte_id)
+    for zone, cartes in sorted(par_zone.items()):
+        for debut in range(0, len(cartes), LIGNES_PAR_ENVOI):
+            _executer(
+                _client.table("deck_cartes")
+                .delete(returning=ReturnMethod.minimal)
+                .eq("deck_id", deck_id)
+                .eq("zone", zone)
+                .in_("carte_id", sorted(cartes)[debut:debut + LIGNES_PAR_ENVOI])
+            )

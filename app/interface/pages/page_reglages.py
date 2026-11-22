@@ -34,12 +34,13 @@ MENTION_RIOT = (
 
 CREDITS = (
     "Données des cartes : Riftcodex. Images des cartes : Riot Games. "
-    "Polices : Cinzel et Albert Sans (licence OFL). Icônes : Lucide (licence ISC)."
+    "Polices : Cinzel et Albert Sans (licence OFL). Icônes : Lucide (licence ISC). "
+    "Codes de deck : format de Piltover Archive (licence Apache 2.0)."
 )
 
 RACCOURCIS = [
     (("Ctrl", "F"), "Rechercher une carte"),
-    (("Ctrl", "1", "à", "6"), "Changer de page"),
+    (("Ctrl", "1", "à", "7"), "Changer de page"),
     (("Flèches",), "Passer d'une carte ou d'une pochette à l'autre"),
     (("Page préc.", "Page suiv."), "Tourner les pages d'un classeur"),
     (("Suppr",), "Vider la pochette choisie"),

@@ -721,6 +721,13 @@ class ListeChoix(QAbstractButton):
             self.valeur = valeur
             self.update()
 
+    def definir_choix(self, choix):
+        self.choix = list(choix)
+        if self.valeur not in dict(self.choix):
+            self.valeur = self.choix[0][0] if self.choix else None
+        self.updateGeometry()
+        self.update()
+
     def sizeHint(self):
         metrique = QFontMetrics(self.font())
         largeur = max((metrique.horizontalAdvance(texte) for _, texte in self.choix), default=60)

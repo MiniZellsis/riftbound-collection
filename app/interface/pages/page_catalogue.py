@@ -11,13 +11,13 @@ from app.interface.composants.zone_cartes import ZoneCartes
 class PageCatalogue(QWidget):
     set_affiche = Signal(list)
 
-    def __init__(self, collection, classeurs=None, parent=None):
+    def __init__(self, collection, classeurs=None, decks=None, parent=None):
         super().__init__(parent)
         self.collection = collection
         self.sets = {}
 
         self.onglets = Onglets()
-        self.zone = ZoneCartes(collection, classeurs)
+        self.zone = ZoneCartes(collection, classeurs, decks)
         self.grille = self.zone.grille
         self.reglage = ReglageTaille(self.grille)
 

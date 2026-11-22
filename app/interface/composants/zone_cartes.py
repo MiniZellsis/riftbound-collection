@@ -7,7 +7,7 @@ from app.donnees.collection import version_vide
 from app.interface import icones, theme
 from app.interface.composants.elements import EtatVide
 from app.interface.composants.grille_cartes import ROLE_CARTE_ID, GrilleCartes
-from app.interface.composants.panneau_carte import PanneauCarte, menu_ranger, ranger
+from app.interface.composants.panneau_carte import PanneauCarte, ajouter_au_deck, menu_decks, menu_ranger, ranger
 
 
 def entete_menu(menu, carte):
@@ -31,12 +31,13 @@ def entete_menu(menu, carte):
 class ZoneCartes(QWidget):
     collection_modifiee = Signal()
 
-    def __init__(self, collection, classeurs=None, parent=None):
+    def __init__(self, collection, classeurs=None, decks=None, parent=None):
         super().__init__(parent)
         self.collection = collection
         self.classeurs = classeurs
+        self.decks = decks
         self.grille = GrilleCartes(collection)
-        self.panneau = PanneauCarte(collection, classeurs)
+        self.panneau = PanneauCarte(collection, classeurs, decks)
         self.panneau.hide()
 
         self.etat_vide = EtatVide()
@@ -150,6 +151,13 @@ class ZoneCartes(QWidget):
             sous_menu.setIcon(icones.icone("book-open", 16))
             rangements = menu_ranger(sous_menu, self.classeurs, carte_id)
             menu.addMenu(sous_menu)
+        ajouts = {}
+        if self.decks is not None and self.decks.chargee and self.decks.liste:
+            sous_menu = theme.creer_menu(menu)
+            sous_menu.setTitle("Ajouter à un deck")
+            sous_menu.setIcon(icones.icone("layers", 16))
+            ajouts = menu_decks(sous_menu, self.decks, carte_id)
+            menu.addMenu(sous_menu)
         detail = menu.addAction(icones.icone("panel-right-open", 16), "Voir le détail")
         if not self.collection.chargee:
             for action in (ajouter, ajouter_foil, retirer, retirer_foil, recherchee, doubles):
@@ -165,6 +173,9 @@ class ZoneCartes(QWidget):
             return
         if choix in rangements:
             ranger(self.classeurs, rangements[choix], carte_id)
+            return
+        if choix in ajouts:
+            ajouter_au_deck(self.decks, ajouts[choix], carte_id)
             return
 
         version_choisie = principale["foil"]

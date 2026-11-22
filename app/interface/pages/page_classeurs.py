@@ -14,9 +14,10 @@ from PySide6.QtWidgets import (
 )
 
 from app.donnees import catalogue
-from app.donnees.classeurs import capacite, decrire_position, par_page, position
+from app.donnees.classeurs import capacite, contenu_pile, decrire_position, par_page, position
+from app.donnees.decks import besoins
 from app.interface import icones, theme
-from app.interface.composants.elements import EtatVide, Onglets, Segments, Titre
+from app.interface.composants.elements import EtatVide, ListeChoix, Onglets, Segments, Titre
 from app.interface.composants.fenetres_classeur import FenetreChoixCarte, FenetreClasseur, FenetreRemplir
 from app.interface.composants.panneau_carte import LARGEUR, PanneauCarte
 from app.interface.composants.vue_classeur import VueClasseur
@@ -114,10 +115,11 @@ class PanneauVide(QFrame):
 
 
 class PageClasseurs(QWidget):
-    def __init__(self, collection, classeurs, parent=None):
+    def __init__(self, collection, classeurs, decks=None, parent=None):
         super().__init__(parent)
         self.collection = collection
         self.classeurs = classeurs
+        self.decks = decks
         self.cartes = {}
         self.ids = []
         self.a_montrer = None
@@ -149,12 +151,19 @@ class PageClasseurs(QWidget):
         ligne_infos.setSpacing(10)
         ligne_infos.addWidget(self.couverture)
         ligne_infos.addWidget(self.infos, stretch=1)
+        self.choix_deck = ListeChoix([(None, "Surligner un deck…")])
+        self.choix_deck.setFixedWidth(210)
+        self.choix_deck.setToolTip("Montre où sont les cartes d'un deck, pour les sortir vite du classeur")
+        self.choix_deck.setVisible(decks is not None)
+        ligne_infos.addWidget(self.choix_deck)
+        ligne_infos.addSpacing(6)
         ligne_infos.addWidget(self.bouton_remplir)
         ligne_infos.addWidget(self.bouton_modifier)
         ligne_infos.addWidget(self.bouton_supprimer)
 
-        self.vue = VueClasseur(collection)
-        self.panneau = PanneauCarte(collection, classeurs)
+        self.vue = VueClasseur(collection, classeurs)
+        self.vue.decks = decks
+        self.panneau = PanneauCarte(collection, classeurs, decks)
         self.panneau_vide = PanneauVide()
         self.cote = QStackedWidget()
         self.cote.setFixedWidth(LARGEUR)
@@ -233,6 +242,10 @@ class PageClasseurs(QWidget):
         self.panneau_vide.fermer.clicked.connect(self.fermer_cote)
         self.panneau_vide.placer.clicked.connect(lambda: self.choisir_carte(self.vue.choisie))
         theme.signaux().change.connect(self.afficher_infos)
+        self.choix_deck.change.connect(self.surligner)
+        if decks is not None:
+            decks.change.connect(self.actualiser_decks)
+            self.actualiser_decks()
 
         raccourci = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         raccourci.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
@@ -368,18 +381,32 @@ class PageClasseurs(QWidget):
             self.texte_pochette.setText(f"{endroit}  —  pochette vide")
         else:
             nom = carte["nom"] if carte is not None else element["carte_id"]
+            pile = self.classeurs.pile(classeur["id"], pochette)
+            if len(pile) > 1:
+                nom += f"  ·  {len(pile)} versions"
             self.texte_pochette.setText(f"{endroit}  —  {nom}")
+            montree = self.panneau.carte["carte_id"] if self.panneau.carte is not None else None
+            if self.cote.isVisible() and self.cote.currentWidget() is self.panneau and montree in pile:
+                self.panneau.definir_pile(pile, element["version"])
         self.panneau_vide.code.setText(f"PAGE {page} · RANGÉE {ligne} · COLONNE {colonne}")
+
+    def montrer_detail(self, pochette):
+        classeur = self.classeur()
+        element = self.classeurs.contenu(classeur["id"]).get(pochette) if classeur and pochette >= 0 else None
+        if element is None:
+            return False
+        pile = self.classeurs.pile(classeur["id"], pochette)
+        self.panneau.afficher(contenu_pile(self.collection, pile, element["version"])[2])
+        self.panneau.definir_pile(pile, element["version"])
+        self.cote.setCurrentWidget(self.panneau)
+        self.cote.show()
+        return True
 
     def pochette_choisie(self, pochette):
         self.afficher_pochette()
-        classeur = self.classeur()
-        element = self.classeurs.contenu(classeur["id"]).get(pochette) if classeur and pochette >= 0 else None
-        if element is not None:
-            self.panneau.afficher(element["carte_id"])
-            self.cote.setCurrentWidget(self.panneau)
-            self.cote.show()
-        elif pochette >= 0 and self.cote.isVisible():
+        if self.montrer_detail(pochette):
+            return
+        if pochette >= 0 and self.cote.isVisible():
             self.cote.setCurrentWidget(self.panneau_vide)
         elif pochette < 0:
             self.fermer_cote()
@@ -469,9 +496,7 @@ class PageClasseurs(QWidget):
         if choix in (placer, changer):
             self.choisir_carte(pochette)
         elif choix == detail:
-            self.panneau.afficher(element["carte_id"])
-            self.cote.setCurrentWidget(self.panneau)
-            self.cote.show()
+            self.montrer_detail(pochette)
         elif choix == vider:
             self.vider(pochette)
         elif choix in versions:
@@ -545,6 +570,30 @@ class PageClasseurs(QWidget):
 
     def enregistrer_maintenant(self):
         self.panneau.enregistrer_maintenant()
+
+    def actualiser_decks(self):
+        if self.decks is None:
+            return
+        choix = [(None, "Surligner un deck…")]
+        if self.decks.chargee:
+            choix += [(deck["id"], f"Deck : {deck['nom']}") for deck in self.decks.liste]
+        self.choix_deck.definir_choix(choix)
+        self.surligner()
+
+    def surligner(self):
+        deck = self.decks.deck(self.choix_deck.valeur) if self.decks is not None and self.choix_deck.valeur else None
+        if deck is None:
+            self.vue.surligner({})
+            return
+        cartes = self.decks.cartes()
+        besoins_deck = besoins(self.decks.contenu(deck["id"]), cartes)
+        self.vue.surligner({cle: besoin["quantite"] for cle, besoin in besoins_deck.items()}, deck["nom"])
+
+    def surligner_deck(self, deck_id, classeur_id, pochette):
+        self.actualiser_decks()
+        self.choix_deck.definir(deck_id)
+        self.surligner()
+        self.montrer(classeur_id, pochette)
 
     def sizeHint(self):
         return QSize(1100, 760)

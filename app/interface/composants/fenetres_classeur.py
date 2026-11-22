@@ -26,6 +26,7 @@ from app.donnees.classeurs import (
     cartes_a_ranger,
     contenu_automatique,
     par_page,
+    variantes_empilees,
 )
 from app.interface import icones, theme
 from app.interface.composants.elements import ChampNombre, ListeChoix, Segments, Titre
@@ -406,8 +407,14 @@ class FenetreRemplir(FenetreDialogue):
         self.miennes.setChecked(True)
         aide_miennes = aide("Décoche pour garder aussi une pochette, vide, à chaque carte qui te manque.")
         aide_miennes.setContentsMargins(26, 0, 0, 0)
-        self.variantes = QCheckBox("Inclure les variantes (arts alternatifs, signatures, surnumérotées)")
-        self.variantes.setChecked(True)
+        self.surnumerotees = QCheckBox("Inclure les cartes surnumérotées (ex. OGN 299 / 298)")
+        self.surnumerotees.setChecked(True)
+
+        self.variantes = Segments([("pile", "Avec la carte de base"), ("a_part", "Dans leur propre pochette")])
+        ligne_variantes = QHBoxLayout()
+        ligne_variantes.addWidget(self.variantes)
+        ligne_variantes.addStretch()
+        aide_variantes = aide("Exemple : OGN 030a et OGN 030b vont dans la même pochette que OGN 030.")
 
         self.foils = Segments([("ensemble", "Avec les normales"), ("a_part", "Dans une pochette à part")])
         ligne_foils = QHBoxLayout()
@@ -422,7 +429,7 @@ class FenetreRemplir(FenetreDialogue):
         self.resume = QLabel("")
         self.resume.setWordWrap(True)
         self.resume.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        self.resume.setMinimumHeight(self.resume.fontMetrics().lineSpacing() * 4 + 6)
+        self.resume.setMinimumHeight(self.resume.fontMetrics().lineSpacing() * 5 + 6)
         cadre_resume = QFrame()
         cadre_resume.setObjectName("resume_remplir")
         disposition_resume = QVBoxLayout(cadre_resume)
@@ -434,7 +441,11 @@ class FenetreRemplir(FenetreDialogue):
         self.contenu.addSpacing(2)
         self.contenu.addWidget(self.miennes)
         self.contenu.addWidget(aide_miennes)
-        self.contenu.addWidget(self.variantes)
+        self.contenu.addWidget(self.surnumerotees)
+        self.contenu.addSpacing(8)
+        self.contenu.addWidget(libelle("Variantes (arts alternatifs, signatures)"))
+        self.contenu.addLayout(ligne_variantes)
+        self.contenu.addWidget(aide_variantes)
         self.contenu.addSpacing(8)
         self.contenu.addWidget(libelle("Foils"))
         self.contenu.addLayout(ligne_foils)
@@ -445,10 +456,10 @@ class FenetreRemplir(FenetreDialogue):
         self.contenu.addSpacing(10)
         self.contenu.addWidget(cadre_resume)
 
-        for element in (self.set, self.domaine, self.foils, self.placement):
+        for element in (self.set, self.domaine, self.variantes, self.foils, self.placement):
             element.change.connect(self.actualiser)
         self.miennes.toggled.connect(self.actualiser)
-        self.variantes.toggled.connect(self.actualiser)
+        self.surnumerotees.toggled.connect(self.actualiser)
         self.setMinimumWidth(620)
         self.actualiser()
 
@@ -458,20 +469,38 @@ class FenetreRemplir(FenetreDialogue):
     def depart(self):
         return 0 if self.remplacer() else self.classeurs.derniere(self.classeur["id"]) + 1
 
-    def elements(self):
-        cartes = cartes_a_ranger(self.cartes, self.set.valeur, self.domaine.valeur, self.variantes.isChecked())
-        return contenu_automatique(
-            cartes, self.collection, not self.miennes.isChecked(), self.foils.valeur() == "a_part"
+    def calculer(self):
+        cartes = cartes_a_ranger(self.cartes, self.set.valeur, self.domaine.valeur, self.surnumerotees.isChecked())
+        membres = self.classeurs.groupes() if self.variantes.valeur() == "pile" else {}
+        elements = contenu_automatique(
+            cartes, self.collection, not self.miennes.isChecked(), self.foils.valeur() == "a_part", membres
         )
+        deja = 0
+        if not self.remplacer():
+            if membres:
+                rangees = self.classeurs.cartes_du_classeur(self.classeur["id"])
+            else:
+                rangees = {element["carte_id"] for element in self.classeurs.contenu(self.classeur["id"]).values()}
+            restants = [element for element in elements if element[0] not in rangees]
+            deja = len({carte_id for carte_id, _ in elements}) - len({carte_id for carte_id, _ in restants})
+            elements = restants
+        empilees = variantes_empilees(cartes, self.collection, membres, {carte_id for carte_id, _ in elements})
+        return elements, deja, empilees
+
+    def elements(self):
+        return self.calculer()[0]
 
     def actualiser(self):
-        elements = self.elements()
+        elements, deja, empilees = self.calculer()
         nombre = len(elements)
         depart = self.depart()
         places = max(0, capacite(self.classeur) - depart)
         self.bouton_valider.setEnabled(nombre > 0 and places > 0)
         if nombre == 0:
-            self.resume.setText("Aucune carte ne correspond à ces choix.")
+            if deja:
+                self.resume.setText("Toutes ces cartes sont déjà rangées dans ce classeur.")
+            else:
+                self.resume.setText("Aucune carte ne correspond à ces choix.")
             return
         rangees = min(nombre, places)
         lignes = []
@@ -480,6 +509,12 @@ class FenetreRemplir(FenetreDialogue):
             derniere = (depart + rangees - 1) // par_page(self.classeur) + 1
             pages = f"page {premiere}" if premiere == derniere else f"pages {premiere} à {derniere}"
             lignes.append(f"<b>{nombre}</b> pochette{'s' if nombre > 1 else ''} à remplir : {pages}.")
+        if empilees:
+            pluriel = "s" if empilees > 1 else ""
+            lignes.append(f"{empilees} variante{pluriel} rangée{pluriel} avec leur carte de base.")
+        if deja:
+            pluriel = "s" if deja > 1 else ""
+            lignes.append(f"{deja} carte{pluriel} déjà dans ce classeur : pas ajoutée{pluriel} une deuxième fois.")
         if nombre > places:
             manque = nombre - places
             lignes.append(

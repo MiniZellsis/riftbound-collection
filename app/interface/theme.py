@@ -459,6 +459,50 @@ QLabel#emplacement {{
     font-size: 12px;
     color: {p['TEXTE_DOUX']};
 }}
+QFrame#ligne_deck {{
+    background: transparent;
+    border-radius: 8px;
+}}
+QFrame#ligne_deck:hover {{
+    background: {p['SURFACE_HAUTE']};
+}}
+QLabel#cout_deck {{
+    background: {p['SURFACE_HAUTE']};
+    border: 1px solid {p['BORDURE']};
+    border-radius: 12px;
+    color: {p['OR_CLAIR']};
+    font-size: 12px;
+    font-weight: 700;
+}}
+QLabel#nom_deck {{
+    color: {p['TEXTE']};
+    font-size: 14px;
+}}
+QLabel#manque_deck {{
+    color: {p['ROUGE']};
+    font-size: 12px;
+    font-weight: 600;
+}}
+QLabel#nombre_deck {{
+    color: {p['OR_CLAIR']};
+    font-weight: 700;
+}}
+QLabel#sous_groupe_deck {{
+    color: {p['TEXTE_DOUX']};
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 0 2px 8px;
+}}
+QPlainTextEdit#liste_deck {{
+    background: {p['SURFACE']};
+    border: 1px solid {p['BORDURE']};
+    border-radius: 10px;
+    padding: 6px;
+    color: {p['TEXTE']};
+}}
+QPlainTextEdit#liste_deck:focus {{
+    border-color: {p['OR']};
+}}
 QFrame#resume_remplir {{
     background: {p['SURFACE']};
     border: 1px solid {p['BORDURE']};

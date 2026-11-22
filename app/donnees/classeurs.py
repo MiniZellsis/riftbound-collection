@@ -1,13 +1,10 @@
-import queue
-import threading
 import uuid
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import Signal
 
-from app import journal
 from app.donnees import catalogue, supabase_client
+from app.donnees.synchronisation import Synchronisation
 
-ATTENTE_FERMETURE = 10
 FORMATS = [(2, 2), (3, 3), (4, 3), (4, 4)]
 COTE_MAX = 6
 PAGES_MAX = 400
@@ -47,7 +44,7 @@ def quantites(collection, carte_id, version):
     return normales + foils, foils > 0
 
 
-def cartes_a_ranger(cartes, groupe, domaine, avec_variantes):
+def cartes_a_ranger(cartes, groupe, domaine, avec_surnumerotees):
     resultat = []
     for carte in cartes:
         nom_groupe = catalogue.groupe_set(carte["set_nom"])
@@ -55,64 +52,86 @@ def cartes_a_ranger(cartes, groupe, domaine, avec_variantes):
             continue
         if domaine and domaine not in (carte["domaines"] or "").split(", "):
             continue
-        if not avec_variantes and nom_groupe != catalogue.NOM_PROMOS and not catalogue.est_de_base(carte["code"]):
+        if (
+            not avec_surnumerotees
+            and nom_groupe != catalogue.NOM_PROMOS
+            and catalogue.est_surnumerotee(carte["code"])
+        ):
             continue
         resultat.append(carte)
     return resultat
 
 
-def contenu_automatique(cartes, collection, avec_manquantes, foils_a_part):
+def contenu_automatique(cartes, collection, avec_manquantes, foils_a_part, membres=None):
+    membres = membres or {}
     contenu = []
+    vues = set()
     for carte in cartes:
-        carte_id = carte["carte_id"]
-        normales = collection.version(carte_id, False)["quantite"]
-        foils = collection.version(carte_id, True)["quantite"]
+        if carte["carte_id"] in vues:
+            continue
+        groupe = membres.get(carte["carte_id"], [carte["carte_id"]])
+        vues.update(groupe)
+        representant = groupe[0]
+        normales = sum(collection.version(carte_id, False)["quantite"] for carte_id in groupe)
+        foils = sum(collection.version(carte_id, True)["quantite"] for carte_id in groupe)
         if normales + foils == 0:
             if avec_manquantes:
-                contenu.append((carte_id, "toutes"))
+                contenu.append((representant, "toutes"))
         elif foils_a_part and normales and foils:
-            contenu.append((carte_id, "normale"))
-            contenu.append((carte_id, "foil"))
+            contenu.append((representant, "normale"))
+            contenu.append((representant, "foil"))
         else:
-            contenu.append((carte_id, "toutes"))
+            contenu.append((representant, "toutes"))
     return contenu
 
 
-class Classeurs(QObject):
-    change = Signal()
-    envoi_reussi = Signal()
-    envoi_echoue = Signal(str)
-    envoi_fini = Signal(str)
-    message = Signal(str)
+def variantes_empilees(cartes, collection, membres, representants):
+    nombre = 0
+    for carte in cartes:
+        groupe = membres.get(carte["carte_id"])
+        if (
+            groupe
+            and groupe[0] != carte["carte_id"]
+            and groupe[0] in representants
+            and collection.quantite(carte["carte_id"]) > 0
+        ):
+            nombre += 1
+    return nombre
+
+
+def contenu_pile(collection, pile, version):
+    total = 0
+    foil = False
+    devant = None
+    possedees = 0
+    for carte_id in pile:
+        quantite, avec_foil = quantites(collection, carte_id, version)
+        if quantite:
+            total += quantite
+            foil = foil or avec_foil
+            possedees += 1
+            if devant is None:
+                devant = carte_id
+    if devant is None and pile:
+        devant = pile[0]
+    return total, foil, devant, possedees
+
+
+class Classeurs(Synchronisation):
     ouverture_demandee = Signal(str, int)
 
+    titre = "Classeurs"
+    message_tables = MESSAGE_TABLES
+
     def __init__(self, user_id, parent=None):
-        super().__init__(parent)
-        self.user_id = user_id
+        super().__init__(user_id, parent)
         self.liste = []
         self.contenus = {}
-        self.chargee = False
-        self.erreur = ""
-        self.a_recharger = False
-        self.file = queue.Queue()
-        self.condition = threading.Condition()
-        self.restants = 0
-        self.echecs_non_vus = 0
-        self.envoi_fini.connect(self.fin_envoi, Qt.ConnectionType.QueuedConnection)
-        threading.Thread(target=self.envoyer, daemon=True).start()
+        self.groupes_numeros = None
+        self.index_places = None
 
-    def charger(self):
-        try:
-            self.appliquer(*supabase_client.lire_classeurs())
-        except supabase_client.TableAbsente:
-            self.erreur = MESSAGE_TABLES
-        except supabase_client.ErreurSupabase as erreur:
-            self.erreur = f"Classeurs indisponibles : {erreur}"
-        except Exception as exception:
-            journal.noter_erreur(type(exception), exception, exception.__traceback__)
-            self.erreur = "Classeurs indisponibles : erreur inattendue (détails dans erreurs.log)."
-        self.change.emit()
-        return self.chargee
+    def lire(self):
+        return supabase_client.lire_classeurs()
 
     def appliquer(self, classeurs, pochettes):
         self.liste = [dict(classeur) for classeur in classeurs]
@@ -124,18 +143,63 @@ class Classeurs(QObject):
         self.erreur = ""
         self.chargee = True
 
-    def resynchroniser(self):
-        with self.condition:
-            occupe = self.restants > 0
-        if not self.a_recharger or occupe:
-            return
-        try:
-            donnees = supabase_client.lire_classeurs()
-        except supabase_client.ErreurSupabase:
-            return
-        self.a_recharger = False
-        self.appliquer(*donnees)
+    def executer(self, operation, argument):
+        if operation == "classeur":
+            supabase_client.enregistrer_classeur(self.user_id, argument)
+        elif operation == "supprimer_classeur":
+            supabase_client.supprimer_classeur(argument)
+        elif operation == "pochettes":
+            supabase_client.enregistrer_pochettes(argument)
+        elif operation == "vider":
+            supabase_client.supprimer_pochettes(*argument)
+
+    def signaler(self):
+        self.index_places = None
         self.change.emit()
+
+    def groupes(self):
+        if self.groupes_numeros is None:
+            self.groupes_numeros = catalogue.groupes_numeros(catalogue.lister_cartes())
+        return self.groupes_numeros
+
+    def oublier_groupes(self):
+        self.groupes_numeros = None
+        self.signaler()
+
+    def places(self):
+        if self.index_places is None:
+            index = {}
+            for classeur in self.liste:
+                for pochette, element in sorted(self.contenus[classeur["id"]].items()):
+                    index.setdefault(element["carte_id"], []).append((classeur["id"], pochette))
+            self.index_places = index
+        return self.index_places
+
+    def maisons(self, membres):
+        places = self.places()
+        if membres[0] in places:
+            return places[membres[0]]
+        for carte_id in membres:
+            if carte_id in places:
+                return places[carte_id][:1]
+        return []
+
+    def pile(self, classeur_id, pochette):
+        element = self.contenu(classeur_id).get(pochette)
+        if element is None:
+            return []
+        carte_id = element["carte_id"]
+        membres = self.groupes().get(carte_id)
+        if not membres or (classeur_id, pochette) not in self.maisons(membres):
+            return [carte_id]
+        places = self.places()
+        return [carte_id] + [autre for autre in membres if autre != carte_id and autre not in places]
+
+    def cartes_du_classeur(self, classeur_id):
+        cartes = set()
+        for pochette in self.contenu(classeur_id):
+            cartes.update(self.pile(classeur_id, pochette))
+        return cartes
 
     def classeur(self, classeur_id):
         return next((classeur for classeur in self.liste if classeur["id"] == classeur_id), None)
@@ -154,12 +218,13 @@ class Classeurs(QObject):
         return None
 
     def emplacements(self, carte_id):
-        resultat = []
-        for classeur in self.liste:
-            for pochette, element in sorted(self.contenus[classeur["id"]].items()):
-                if element["carte_id"] == carte_id:
-                    resultat.append((classeur, pochette))
-        return resultat
+        directs = self.places().get(carte_id)
+        if directs:
+            return [(self.classeur(classeur_id), pochette, False) for classeur_id, pochette in directs]
+        membres = self.groupes().get(carte_id)
+        if not membres:
+            return []
+        return [(self.classeur(classeur_id), pochette, True) for classeur_id, pochette in self.maisons(membres)]
 
     def ligne(self, classeur_id, pochette):
         return {"classeur_id": classeur_id, "pochette": pochette, **self.contenus[classeur_id][pochette]}
@@ -176,25 +241,25 @@ class Classeurs(QObject):
         self.liste.append(classeur)
         self.contenus[classeur["id"]] = {}
         self.ajouter_envoi(("classeur", dict(classeur)))
-        self.change.emit()
+        self.signaler()
         return classeur
 
     def modifier(self, classeur_id, **champs):
         classeur = self.classeur(classeur_id)
         classeur.update(champs)
         self.ajouter_envoi(("classeur", dict(classeur)))
-        self.change.emit()
+        self.signaler()
 
     def supprimer(self, classeur_id):
         self.liste = [classeur for classeur in self.liste if classeur["id"] != classeur_id]
         self.contenus.pop(classeur_id, None)
         self.ajouter_envoi(("supprimer_classeur", classeur_id))
-        self.change.emit()
+        self.signaler()
 
     def placer(self, classeur_id, pochette, carte_id, version="toutes"):
         self.contenus[classeur_id][pochette] = {"carte_id": carte_id, "version": version}
         self.ajouter_envoi(("pochettes", [self.ligne(classeur_id, pochette)]))
-        self.change.emit()
+        self.signaler()
 
     def ranger(self, classeur_id, carte_id):
         pochette = self.premiere_libre(classeur_id)
@@ -210,7 +275,7 @@ class Classeurs(QObject):
         for pochette in pochettes:
             del contenu[pochette]
         self.ajouter_envoi(("vider", (classeur_id, pochettes)))
-        self.change.emit()
+        self.signaler()
 
     def deplacer(self, classeur_id, depart, arrivee):
         contenu = self.contenus[classeur_id]
@@ -229,7 +294,7 @@ class Classeurs(QObject):
             self.ajouter_envoi(
                 ("pochettes", [self.ligne(classeur_id, arrivee), self.ligne(classeur_id, depart)])
             )
-        self.change.emit()
+        self.signaler()
 
     def remplir(self, classeur_id, elements, depart, remplacer):
         contenu = self.contenus[classeur_id]
@@ -246,64 +311,5 @@ class Classeurs(QObject):
             etapes.append(("pochettes", [self.ligne(classeur_id, pochette) for pochette in pochettes]))
         if etapes:
             self.ajouter_envoi(*etapes)
-        self.change.emit()
+        self.signaler()
         return len(elements)
-
-    def ajouter_envoi(self, *etapes):
-        with self.condition:
-            self.restants += 1
-        self.file.put(list(etapes))
-
-    def envoyer(self):
-        while True:
-            etapes = self.file.get()
-            if etapes is None:
-                return
-            erreur = ""
-            try:
-                for operation, argument in etapes:
-                    if operation == "classeur":
-                        supabase_client.enregistrer_classeur(self.user_id, argument)
-                    elif operation == "supprimer_classeur":
-                        supabase_client.supprimer_classeur(argument)
-                    elif operation == "pochettes":
-                        supabase_client.enregistrer_pochettes(argument)
-                    elif operation == "vider":
-                        supabase_client.supprimer_pochettes(*argument)
-            except supabase_client.ErreurSupabase as exception:
-                erreur = str(exception)
-            except Exception as exception:
-                journal.noter_erreur(type(exception), exception, exception.__traceback__)
-                erreur = "erreur inattendue (détails dans erreurs.log)"
-            with self.condition:
-                self.restants -= 1
-                if erreur:
-                    self.echecs_non_vus += 1
-                self.condition.notify_all()
-            try:
-                self.envoi_fini.emit(erreur)
-            except RuntimeError:
-                return
-
-    def fin_envoi(self, erreur):
-        if erreur:
-            with self.condition:
-                self.echecs_non_vus -= 1
-            self.a_recharger = True
-            self.envoi_echoue.emit(erreur)
-        with self.condition:
-            termine = self.restants == 0
-        if not termine:
-            return
-        if self.a_recharger:
-            self.resynchroniser()
-        elif not erreur:
-            self.envoi_reussi.emit()
-
-    def attendre_envois(self):
-        with self.condition:
-            termine = self.condition.wait_for(lambda: self.restants == 0, timeout=ATTENTE_FERMETURE)
-            return termine and self.echecs_non_vus == 0
-
-    def arreter(self):
-        self.file.put(None)

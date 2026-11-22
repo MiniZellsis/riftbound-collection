@@ -5,7 +5,8 @@ from PySide6.QtGui import QColor, QDrag, QFont, QFontMetrics, QLinearGradient, Q
 from PySide6.QtWidgets import QApplication, QPushButton, QToolTip, QWidget
 
 from app.donnees import catalogue
-from app.donnees.classeurs import decrire_position, par_page, quantites
+from app.donnees.classeurs import contenu_pile, decrire_position, par_page, quantites
+from app.donnees.decks import normaliser
 from app.donnees.images import ARRONDI, charger_miniature
 from app.interface import icones, theme
 from app.interface.composants.effets import ajouter_effets, dessiner_avec_bord
@@ -29,6 +30,7 @@ LARGEUR_MAX = 190
 DELAI_FEUILLETAGE = 700
 TEMPS_PAR_TOUR = 0.008
 COULEUR_ANNEAUX = ["#f4f1ea", "#b9b4aa", "#7d786f", "#c9c4ba"]
+CARTES_DERRIERE = 2
 
 
 class VueClasseur(QWidget):
@@ -39,9 +41,13 @@ class VueClasseur(QWidget):
     suppression_demandee = Signal(int)
     double_page_changee = Signal()
 
-    def __init__(self, collection, parent=None):
+    def __init__(self, collection, classeurs, parent=None):
         super().__init__(parent)
         self.collection = collection
+        self.classeurs = classeurs
+        self.decks = None
+        self.surlignage = {}
+        self.nom_surlignage = ""
         self.classeur = None
         self.contenu = {}
         self.cartes = {}
@@ -132,6 +138,38 @@ class VueClasseur(QWidget):
     def pochettes_visibles(self):
         return sorted(self.zones)
 
+    def pile(self, pochette):
+        if self.classeur is None or pochette not in self.contenu:
+            return []
+        return self.classeurs.pile(self.classeur["id"], pochette)
+
+    def cartes_visibles(self):
+        cartes = []
+        for pochette in self.pochettes_visibles():
+            cartes.extend(self.pile(pochette))
+        return cartes
+
+    def noms_pile(self, pochette):
+        noms = set()
+        for carte_id in self.pile(pochette):
+            carte = self.cartes.get(carte_id)
+            if carte is not None:
+                noms.add(normaliser(carte["nom"]))
+        return noms
+
+    def surligner(self, besoins, nom=""):
+        self.surlignage = dict(besoins)
+        self.nom_surlignage = nom
+        self.update()
+
+    def montees(self):
+        if self.decks is None or not self.decks.chargee:
+            return {}
+        return self.decks.cartes_montees()
+
+    def toutes_les_cartes(self):
+        return self.classeurs.cartes_du_classeur(self.classeur["id"]) if self.classeur else set()
+
     def calculer(self):
         self.zones = {}
         self.zones_pages = []
@@ -195,19 +233,16 @@ class VueClasseur(QWidget):
         self.calculer()
 
     def preparer_images(self):
-        voulues = {element["carte_id"] for element in self.contenu.values()}
+        voulues = self.toutes_les_cartes()
         self.images = {carte_id: image for carte_id, image in self.images.items() if carte_id in voulues}
         self.images_foil = {carte_id: image for carte_id, image in self.images_foil.items() if carte_id in voulues}
-        visibles = [self.contenu[pochette]["carte_id"] for pochette in self.pochettes_visibles() if pochette in self.contenu]
-        ordre = list(dict.fromkeys(visibles + sorted(voulues)))
+        ordre = list(dict.fromkeys(self.cartes_visibles() + sorted(voulues)))
         self.a_charger = [carte_id for carte_id in ordre if carte_id not in self.images]
         if self.a_charger:
             self.chargeur.start()
 
     def recharger_images(self):
-        visibles = [self.contenu[pochette]["carte_id"] for pochette in self.pochettes_visibles() if pochette in self.contenu]
-        tous = {element["carte_id"] for element in self.contenu.values()}
-        self.a_charger = list(dict.fromkeys(visibles + sorted(tous)))
+        self.a_charger = list(dict.fromkeys(self.cartes_visibles() + sorted(self.toutes_les_cartes())))
         self.chargeur.start()
 
     def charger_suite(self):
@@ -232,7 +267,7 @@ class VueClasseur(QWidget):
         self.update()
 
     def image_telechargee(self, url):
-        for carte_id in {element["carte_id"] for element in self.contenu.values()}:
+        for carte_id in self.toutes_les_cartes():
             carte = self.cartes.get(carte_id)
             if carte is not None and carte["image_url"] == url and carte_id not in self.a_charger:
                 self.a_charger.append(carte_id)
@@ -392,7 +427,8 @@ class VueClasseur(QWidget):
         donnees.setData(FORMAT_GLISSER, QByteArray(str(depart).encode()))
         glissement = QDrag(self)
         glissement.setMimeData(donnees)
-        image = self.images.get(element["carte_id"])
+        devant = contenu_pile(self.collection, self.pile(depart), element["version"])[2]
+        image = self.images.get(devant)
         if image is not None:
             zoom = image.devicePixelRatio()
             apercu = image.scaledToWidth(round(84 * zoom), Qt.TransformationMode.SmoothTransformation)
@@ -477,15 +513,28 @@ class VueClasseur(QWidget):
         element = self.contenu.get(pochette)
         if element is None:
             return f"{place}\nPochette vide : double-clic pour y placer une carte"
-        carte = self.cartes.get(element["carte_id"])
-        if carte is None:
-            return f"{place}\nCarte inconnue du catalogue"
-        quantite, foil = quantites(self.collection, element["carte_id"], element["version"])
-        if quantite:
-            etat = f"×{quantite}" + (" dont foil" if foil and element["version"] == "toutes" else "")
-        else:
-            etat = "pas encore dans ta collection"
-        return f"{carte['nom']} · {catalogue.code_affiche(carte)}\n{place} · {etat}"
+        lignes = []
+        for carte_id in self.pile(pochette):
+            carte = self.cartes.get(carte_id)
+            quantite, foil = quantites(self.collection, carte_id, element["version"])
+            if carte is None or (quantite == 0 and carte_id != element["carte_id"]):
+                continue
+            if quantite:
+                etat = f"×{quantite}" + (" dont foil" if foil and element["version"] == "toutes" else "")
+            else:
+                etat = "pas encore dans ta collection"
+            lignes.append(f"{carte['nom']} · {catalogue.code_affiche(carte)} · {etat}")
+        if not lignes:
+            lignes.append("Carte inconnue du catalogue")
+        noms = self.noms_pile(pochette)
+        if self.surlignage:
+            besoin = sum(self.surlignage.get(nom, 0) for nom in noms)
+            if besoin:
+                lignes.append(f"Pour « {self.nom_surlignage} » : il en faut {besoin}")
+        for nom in noms:
+            for deck, quantite in self.montees().get(nom, []):
+                lignes.append(f"Dans le deck monté « {deck['nom']} » : {quantite}")
+        return "\n".join(lignes + [place])
 
     def paintEvent(self, event):
         if self.classeur is None:
@@ -615,6 +664,22 @@ class VueClasseur(QWidget):
         else:
             self.dessiner_carte(peintre, pochette, element, zone, rayon)
 
+        if self.surlignage:
+            besoin = sum(self.surlignage.get(nom, 0) for nom in self.noms_pile(pochette)) if element else 0
+            if besoin:
+                peintre.setPen(QPen(theme.couleur("OR"), 2.5))
+                peintre.setBrush(Qt.BrushStyle.NoBrush)
+                peintre.drawRoundedRect(poche.adjusted(-1, -1, 1, 1), rayon + 4, rayon + 4)
+                self.dessiner_badge(peintre, zone, True)
+            else:
+                peintre.setPen(Qt.PenStyle.NoPen)
+                peintre.setBrush(theme.couleur("FOND", 175))
+                peintre.drawRoundedRect(poche.adjusted(-1, -1, 1, 1), rayon + 4, rayon + 4)
+        elif element is not None:
+            montees = self.montees()
+            if montees and any(nom in montees for nom in self.noms_pile(pochette)):
+                self.dessiner_badge(peintre, zone, False)
+
         if pochette == self.cible and self.cible != self.glissee:
             stylo = QPen(theme.couleur("OR"), 2)
             stylo.setDashPattern([4, 3])
@@ -628,10 +693,42 @@ class VueClasseur(QWidget):
             peintre.setBrush(Qt.BrushStyle.NoBrush)
             peintre.drawRoundedRect(poche, rayon + 3, rayon + 3)
 
+    def dessiner_badge(self, peintre, zone, plein):
+        cote = max(18.0, zone.width() * 0.17)
+        rond = QRectF(zone.left() - cote * 0.22, zone.top() - cote * 0.22, cote, cote)
+        peintre.setPen(QPen(theme.couleur("OR" if plein else "OR_BAS"), 1.2))
+        peintre.setBrush(theme.couleur("OR") if plein else theme.couleur("FOND", 235))
+        peintre.drawEllipse(rond)
+        taille = round(cote * 0.58)
+        image = icones.pixmap("layers", theme.ENCRE if plein else theme.OR_CLAIR, taille)
+        peintre.drawPixmap(QPointF(rond.center().x() - taille / 2, rond.center().y() - taille / 2), image)
+
+    def dessiner_derriere(self, peintre, nombre, zone, rayon):
+        decalage = max(4.0, min(7.0, zone.width() * 0.05))
+        echelle = (zone.width() - decalage * nombre) / zone.width()
+        devant = QRectF(
+            zone.left(),
+            zone.bottom() - zone.height() * echelle,
+            zone.width() * echelle,
+            zone.height() * echelle,
+        )
+        for rang in range(nombre, 0, -1):
+            place = devant.translated(decalage * rang, -decalage * rang)
+            peintre.setPen(QPen(theme.couleur("TEXTE_DOUX", 230 - 60 * (rang - 1)), 1.2))
+            peintre.setBrush(theme.couleur("SURFACE_HAUTE"))
+            peintre.drawRoundedRect(place.adjusted(0.6, 0.6, -0.6, -0.6), rayon, rayon)
+        peintre.setPen(QPen(QColor(0, 0, 0, 160), 1.5))
+        peintre.setBrush(Qt.BrushStyle.NoBrush)
+        peintre.drawRoundedRect(devant.adjusted(-0.75, -0.75, 0.75, 0.75), rayon, rayon)
+        return devant, rayon * echelle
+
     def dessiner_carte(self, peintre, pochette, element, zone, rayon):
-        carte_id = element["carte_id"]
-        quantite, foil = quantites(self.collection, carte_id, element["version"])
+        pile = self.pile(pochette)
+        quantite, foil, carte_id, possedees = contenu_pile(self.collection, pile, element["version"])
         image = self.images.get(carte_id)
+        if possedees > 1 and pochette != self.glissee:
+            zone, rayon = self.dessiner_derriere(peintre, min(possedees - 1, CARTES_DERRIERE), zone, rayon)
+        foil_devant = quantites(self.collection, carte_id, element["version"])[1]
         peintre.save()
         if pochette == self.glissee:
             peintre.setOpacity(0.3)
@@ -648,7 +745,7 @@ class VueClasseur(QWidget):
             peintre.setFont(police)
             texte = carte["nom"] if carte is not None else "?"
             peintre.drawText(zone.adjusted(6, 6, -6, -6), Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap, texte)
-        elif foil and quantite:
+        elif foil_devant and quantite:
             dessiner_avec_bord(peintre, zone, self.image_foil(carte_id))
         else:
             peintre.drawPixmap(zone, image, QRectF(image.rect()))
@@ -657,7 +754,7 @@ class VueClasseur(QWidget):
             return
         if quantite > 0:
             dessiner_pastille(peintre, zone, quantite, foil)
-        elif self.collection.correspond(carte_id, "recherchees"):
+        elif any(self.collection.correspond(membre, "recherchees") for membre in pile):
             dessiner_coeur(peintre, zone)
 
     def dessiner_etiquettes(self, peintre):
