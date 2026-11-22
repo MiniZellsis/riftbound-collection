@@ -17,7 +17,7 @@ class ImageCarte(QWidget):
         self.inclinaison = Inclinaison(self)
         self.inclinaison.change.connect(self.update)
         self.setMouseTracking(True)
-        self.setMinimumSize(150, 200)
+        self.setMinimumSize(150, 180)
         self.setMaximumHeight(470)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 

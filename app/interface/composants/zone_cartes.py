@@ -7,17 +7,36 @@ from app.donnees.collection import version_vide
 from app.interface import icones, theme
 from app.interface.composants.elements import EtatVide
 from app.interface.composants.grille_cartes import ROLE_CARTE_ID, GrilleCartes
-from app.interface.composants.panneau_carte import PanneauCarte
+from app.interface.composants.panneau_carte import PanneauCarte, menu_ranger, ranger
+
+
+def entete_menu(menu, carte):
+    entete = QWidget()
+    disposition = QVBoxLayout(entete)
+    disposition.setContentsMargins(12, 6, 12, 6)
+    disposition.setSpacing(2)
+    nom = QLabel(carte["nom"].upper())
+    nom.setObjectName("titre_menu")
+    morceaux = [catalogue.code_affiche(carte), carte["rarete"], carte["domaines"]]
+    details = QLabel(" · ".join(morceau for morceau in morceaux if morceau))
+    details.setObjectName("details_menu")
+    disposition.addWidget(nom)
+    disposition.addWidget(details)
+    action = QWidgetAction(menu)
+    action.setDefaultWidget(entete)
+    action.setEnabled(False)
+    return action
 
 
 class ZoneCartes(QWidget):
     collection_modifiee = Signal()
 
-    def __init__(self, collection, parent=None):
+    def __init__(self, collection, classeurs=None, parent=None):
         super().__init__(parent)
         self.collection = collection
+        self.classeurs = classeurs
         self.grille = GrilleCartes(collection)
-        self.panneau = PanneauCarte(collection)
+        self.panneau = PanneauCarte(collection, classeurs)
         self.panneau.hide()
 
         self.etat_vide = EtatVide()
@@ -90,23 +109,6 @@ class ZoneCartes(QWidget):
         if not event.spontaneous():
             self.panneau.enregistrer_maintenant()
 
-    def entete_menu(self, menu, carte):
-        entete = QWidget()
-        disposition = QVBoxLayout(entete)
-        disposition.setContentsMargins(12, 6, 12, 6)
-        disposition.setSpacing(2)
-        nom = QLabel(carte["nom"].upper())
-        nom.setObjectName("titre_menu")
-        morceaux = [catalogue.code_affiche(carte), carte["rarete"], carte["domaines"]]
-        details = QLabel(" · ".join(morceau for morceau in morceaux if morceau))
-        details.setObjectName("details_menu")
-        disposition.addWidget(nom)
-        disposition.addWidget(details)
-        action = QWidgetAction(menu)
-        action.setDefaultWidget(entete)
-        action.setEnabled(False)
-        return action
-
     def ouvrir_menu(self, position):
         element = self.grille.itemAt(position)
         if element is None:
@@ -122,7 +124,7 @@ class ZoneCartes(QWidget):
 
         menu = theme.creer_menu(self)
         if carte is not None:
-            menu.addAction(self.entete_menu(menu, carte))
+            menu.addAction(entete_menu(menu, carte))
             menu.addSeparator()
         ajouter = menu.addAction(icones.icone("plus", 16), "Ajouter un exemplaire")
         ajouter_foil = None if seule_foil else menu.addAction(icones.icone("sparkles", 16), "Ajouter une foil")
@@ -141,6 +143,13 @@ class ZoneCartes(QWidget):
         doubles.setChecked(principale["a_echanger"] > 0)
         doubles.setEnabled(principale["quantite"] > 1 or principale["a_echanger"] > 0)
         menu.addSeparator()
+        rangements = {}
+        if self.classeurs is not None and self.classeurs.chargee and self.classeurs.liste:
+            sous_menu = theme.creer_menu(menu)
+            sous_menu.setTitle("Ranger dans un classeur")
+            sous_menu.setIcon(icones.icone("book-open", 16))
+            rangements = menu_ranger(sous_menu, self.classeurs, carte_id)
+            menu.addMenu(sous_menu)
         detail = menu.addAction(icones.icone("panel-right-open", 16), "Voir le détail")
         if not self.collection.chargee:
             for action in (ajouter, ajouter_foil, retirer, retirer_foil, recherchee, doubles):
@@ -153,6 +162,9 @@ class ZoneCartes(QWidget):
             return
         if choix == detail:
             self.ouvrir(carte_id)
+            return
+        if choix in rangements:
+            ranger(self.classeurs, rangements[choix], carte_id)
             return
 
         version_choisie = principale["foil"]

@@ -128,6 +128,13 @@ def cartes_toujours_foil():
     return {ligne["carte_id"] for ligne in lignes if toujours_foil(ligne)}
 
 
+NOM_PROMOS = "Promos"
+
+
+def groupe_set(set_nom):
+    return NOM_PROMOS if "Promotional" in (set_nom or "") else set_nom
+
+
 def code_affiche(carte, avec_total=False):
     code = carte["code"] or ""
     morceaux = CODE_COMPLET.fullmatch(code)

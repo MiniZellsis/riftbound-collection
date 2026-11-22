@@ -39,8 +39,10 @@ CREDITS = (
 
 RACCOURCIS = [
     (("Ctrl", "F"), "Rechercher une carte"),
-    (("Ctrl", "1", "à", "5"), "Changer de page"),
-    (("Flèches",), "Passer d'une carte à l'autre"),
+    (("Ctrl", "1", "à", "6"), "Changer de page"),
+    (("Flèches",), "Passer d'une carte ou d'une pochette à l'autre"),
+    (("Page préc.", "Page suiv."), "Tourner les pages d'un classeur"),
+    (("Suppr",), "Vider la pochette choisie"),
     (("Échap",), "Fermer le détail d'une carte"),
 ]
 

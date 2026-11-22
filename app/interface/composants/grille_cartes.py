@@ -48,6 +48,73 @@ def lire_largeur():
     return max(LARGEUR_MIN, min(largeur, LARGEUR_MAX))
 
 
+def dessiner_anneau(peintre, zone):
+    rayon = zone.width() * ARRONDI
+    peintre.setBrush(Qt.BrushStyle.NoBrush)
+    for ecart, epaisseur, alpha in ((6, 10, 26), (3.5, 5, 70)):
+        peintre.setPen(QPen(theme.couleur("OR", alpha), epaisseur))
+        peintre.drawRoundedRect(zone.adjusted(-ecart, -ecart, ecart, ecart), rayon + ecart, rayon + ecart)
+    peintre.setPen(QPen(theme.couleur("OR"), 2))
+    peintre.drawRoundedRect(zone.adjusted(-2, -2, 2, 2), rayon + 2, rayon + 2)
+
+
+def dessiner_pastille(peintre, zone, quantite, foil):
+    hauteur = max(16, zone.width() * 0.125)
+    police = QFont(peintre.font())
+    police.setPixelSize(round(hauteur * 0.6))
+    police.setWeight(QFont.Weight.Bold)
+    police.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0)
+    peintre.setFont(police)
+    texte = f"×{quantite}"
+    place_etoile = hauteur * 0.75 if foil else 0
+    largeur = peintre.fontMetrics().horizontalAdvance(texte) + hauteur * 0.9 + place_etoile
+    pastille = QRectF(
+        zone.right() - largeur + hauteur * 0.3,
+        zone.bottom() - hauteur * 0.7,
+        largeur,
+        hauteur,
+    )
+    rayon = hauteur / 2
+
+    peintre.setPen(Qt.PenStyle.NoPen)
+    peintre.setBrush(QColor(0, 0, 0, 90))
+    peintre.drawRoundedRect(pastille.translated(0, 1.5), rayon, rayon)
+    contour = pastille.adjusted(-2, -2, 2, 2)
+    if foil:
+        peintre.setBrush(QBrush(arc_en_ciel(pastille.center())))
+    else:
+        peintre.setBrush(QColor(theme.FOND))
+    peintre.drawRoundedRect(contour, rayon + 2, rayon + 2)
+    degrade = QLinearGradient(0, pastille.top(), 0, pastille.bottom())
+    degrade.setColorAt(0, QColor(theme.OR_HAUT))
+    degrade.setColorAt(1, QColor(theme.OR_BAS))
+    peintre.setBrush(degrade)
+    peintre.drawRoundedRect(pastille, rayon, rayon)
+
+    zone_texte = QRectF(pastille)
+    if foil:
+        centre_etoile = QPointF(pastille.left() + hauteur * 0.62, pastille.center().y())
+        dessiner_etoile(peintre, centre_etoile, hauteur * 0.3, QBrush(QColor(theme.ENCRE)))
+        zone_texte.setLeft(pastille.left() + place_etoile * 0.9)
+    peintre.setPen(QColor(theme.ENCRE))
+    peintre.drawText(zone_texte, Qt.AlignmentFlag.AlignCenter, texte)
+
+
+def dessiner_coeur(peintre, zone):
+    cote = max(18, zone.width() * 0.14)
+    cercle = QRectF(zone.right() - cote * 0.7, zone.bottom() - cote * 0.7, cote, cote)
+    peintre.setPen(Qt.PenStyle.NoPen)
+    peintre.setBrush(QColor(0, 0, 0, 90))
+    peintre.drawEllipse(cercle.translated(0, 1.5))
+    peintre.setBrush(QColor(theme.FOND))
+    peintre.drawEllipse(cercle.adjusted(-2, -2, 2, 2))
+    peintre.setBrush(QColor(theme.AZUR))
+    peintre.drawEllipse(cercle)
+    taille = round(cote * 0.55)
+    coeur = icones.pixmap("heart", "#ffffff", taille, rempli=True)
+    peintre.drawPixmap(QPointF(cercle.center().x() - taille / 2, cercle.center().y() - taille / 2 + 0.5), coeur)
+
+
 class ReglageTaille(QWidget):
     def __init__(self, grille, parent=None):
         super().__init__(parent)
@@ -98,7 +165,7 @@ class DelegueCarte(QStyledItemDelegate):
         peintre.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
         if selectionnee:
-            self.dessiner_anneau(peintre, grille.zone_image(index.data(ROLE_CARTE_ID), QRectF(option.rect)))
+            dessiner_anneau(peintre, grille.zone_image(index.data(ROLE_CARTE_ID), QRectF(option.rect)))
 
         if index.row() not in grille.animations:
             self.dessiner_carte(peintre, index, QRectF(option.rect), None)
@@ -130,15 +197,6 @@ class DelegueCarte(QStyledItemDelegate):
         )
 
         peintre.restore()
-
-    def dessiner_anneau(self, peintre, zone):
-        rayon = zone.width() * ARRONDI
-        peintre.setBrush(Qt.BrushStyle.NoBrush)
-        for ecart, epaisseur, alpha in ((6, 10, 26), (3.5, 5, 70)):
-            peintre.setPen(QPen(theme.couleur("OR", alpha), epaisseur))
-            peintre.drawRoundedRect(zone.adjusted(-ecart, -ecart, ecart, ecart), rayon + ecart, rayon + ecart)
-        peintre.setPen(QPen(theme.couleur("OR"), 2))
-        peintre.drawRoundedRect(zone.adjusted(-2, -2, 2, 2), rayon + 2, rayon + 2)
 
     def dessiner_carte(self, peintre, index, rect, inclinaison):
         grille = self.grille
@@ -174,66 +232,10 @@ class DelegueCarte(QStyledItemDelegate):
             peintre.setOpacity(1)
 
         if quantite > 0:
-            self.dessiner_quantite(peintre, locale, quantite, foil)
+            dessiner_pastille(peintre, locale, quantite, foil)
         elif grille.collection.correspond(carte_id, "recherchees"):
-            self.dessiner_recherchee(peintre, locale)
+            dessiner_coeur(peintre, locale)
         peintre.restore()
-
-    def dessiner_quantite(self, peintre, zone, quantite, foil):
-        hauteur = max(16, zone.width() * 0.125)
-        police = QFont(peintre.font())
-        police.setPixelSize(round(hauteur * 0.6))
-        police.setWeight(QFont.Weight.Bold)
-        police.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0)
-        peintre.setFont(police)
-        texte = f"×{quantite}"
-        place_etoile = hauteur * 0.75 if foil else 0
-        largeur = peintre.fontMetrics().horizontalAdvance(texte) + hauteur * 0.9 + place_etoile
-        pastille = QRectF(
-            zone.right() - largeur + hauteur * 0.3,
-            zone.bottom() - hauteur * 0.7,
-            largeur,
-            hauteur,
-        )
-        rayon = hauteur / 2
-
-        peintre.setPen(Qt.PenStyle.NoPen)
-        peintre.setBrush(QColor(0, 0, 0, 90))
-        peintre.drawRoundedRect(pastille.translated(0, 1.5), rayon, rayon)
-        contour = pastille.adjusted(-2, -2, 2, 2)
-        if foil:
-            peintre.setBrush(QBrush(arc_en_ciel(pastille.center())))
-        else:
-            peintre.setBrush(QColor(theme.FOND))
-        peintre.drawRoundedRect(contour, rayon + 2, rayon + 2)
-        degrade = QLinearGradient(0, pastille.top(), 0, pastille.bottom())
-        degrade.setColorAt(0, QColor(theme.OR_HAUT))
-        degrade.setColorAt(1, QColor(theme.OR_BAS))
-        peintre.setBrush(degrade)
-        peintre.drawRoundedRect(pastille, rayon, rayon)
-
-        zone_texte = QRectF(pastille)
-        if foil:
-            centre_etoile = QPointF(pastille.left() + hauteur * 0.62, pastille.center().y())
-            dessiner_etoile(peintre, centre_etoile, hauteur * 0.3, QBrush(QColor(theme.ENCRE)))
-            zone_texte.setLeft(pastille.left() + place_etoile * 0.9)
-        peintre.setPen(QColor(theme.ENCRE))
-        peintre.drawText(zone_texte, Qt.AlignmentFlag.AlignCenter, texte)
-
-    def dessiner_recherchee(self, peintre, zone):
-        cote = max(18, zone.width() * 0.14)
-        cercle = QRectF(zone.right() - cote * 0.7, zone.bottom() - cote * 0.7, cote, cote)
-        peintre.setPen(Qt.PenStyle.NoPen)
-        peintre.setBrush(QColor(0, 0, 0, 90))
-        peintre.drawEllipse(cercle.translated(0, 1.5))
-        peintre.setBrush(QColor(theme.FOND))
-        peintre.drawEllipse(cercle.adjusted(-2, -2, 2, 2))
-        peintre.setBrush(QColor(theme.AZUR))
-        peintre.drawEllipse(cercle)
-        taille = round(cote * 0.55)
-        coeur = icones.pixmap("heart", "#ffffff", taille, rempli=True)
-        peintre.drawPixmap(QPointF(cercle.center().x() - taille / 2, cercle.center().y() - taille / 2 + 0.5), coeur)
-
 
 class GrilleCartes(QListWidget):
     carte_choisie = Signal(str)

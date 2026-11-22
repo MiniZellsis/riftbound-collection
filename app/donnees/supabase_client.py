@@ -37,6 +37,8 @@ MESSAGES_INSCRIPTION = {
     "over_request_rate_limit": "Trop d'essais en peu de temps. Réessaie dans quelques minutes.",
 }
 LIGNES_PAR_PAGE = 1000
+LIGNES_PAR_ENVOI = 500
+TABLES_ABSENTES = ("PGRST205", "42P01")
 SERVICE_COFFRE = "RiftboundCollection"
 NOM_JETON = "refresh_token"
 
@@ -44,6 +46,10 @@ _rester_connecte = False
 
 
 class ErreurSupabase(Exception):
+    pass
+
+
+class TableAbsente(ErreurSupabase):
     pass
 
 
@@ -90,6 +96,8 @@ def _executer(requete):
     except PostgrestAPIError as erreur:
         if erreur.code == "PGRST301":
             raise ErreurSupabase("Ta session a expiré. Déconnecte-toi puis reconnecte-toi.")
+        if erreur.code in TABLES_ABSENTES:
+            raise TableAbsente(f"Erreur de la base : {erreur.message}")
         raise ErreurSupabase(f"Erreur de la base : {erreur.message}")
 
 
@@ -241,3 +249,63 @@ def supprimer_version(carte_id, foil):
     _executer(
         _client.table("collection").delete().eq("carte_id", carte_id).eq("foil", foil)
     )
+
+
+def lire_classeurs():
+    classeurs = _lire_par_pages(
+        lambda: _client.table("classeurs")
+        .select("id, nom, colonnes, lignes, pages, couleur")
+        .order("cree_le")
+        .order("id")
+    )
+    pochettes = _lire_par_pages(
+        lambda: _client.table("classeur_pochettes")
+        .select("classeur_id, pochette, carte_id, version")
+        .order("classeur_id")
+        .order("pochette")
+    )
+    return classeurs, pochettes
+
+
+def enregistrer_classeur(user_id, classeur):
+    _executer(
+        _client.table("classeurs").upsert(
+            {"user_id": user_id, **classeur}, returning=ReturnMethod.minimal
+        )
+    )
+
+
+def supprimer_classeur(classeur_id):
+    _executer(
+        _client.table("classeurs").delete(returning=ReturnMethod.minimal).eq("id", classeur_id)
+    )
+
+
+def enregistrer_pochettes(lignes):
+    for debut in range(0, len(lignes), LIGNES_PAR_ENVOI):
+        _executer(
+            _client.table("classeur_pochettes").upsert(
+                lignes[debut:debut + LIGNES_PAR_ENVOI],
+                on_conflict="classeur_id,pochette",
+                returning=ReturnMethod.minimal,
+            )
+        )
+
+
+def supprimer_pochettes(classeur_id, pochettes=None):
+    requete = (
+        _client.table("classeur_pochettes")
+        .delete(returning=ReturnMethod.minimal)
+        .eq("classeur_id", classeur_id)
+    )
+    if pochettes is None:
+        _executer(requete)
+        return
+    pochettes = sorted(pochettes)
+    for debut in range(0, len(pochettes), LIGNES_PAR_ENVOI):
+        _executer(
+            _client.table("classeur_pochettes")
+            .delete(returning=ReturnMethod.minimal)
+            .eq("classeur_id", classeur_id)
+            .in_("pochette", pochettes[debut:debut + LIGNES_PAR_ENVOI])
+        )

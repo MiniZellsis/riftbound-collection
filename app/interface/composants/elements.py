@@ -1,8 +1,10 @@
-from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QVariantAnimation, Signal
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QVariantAnimation, Signal
 from PySide6.QtGui import (
+    QActionGroup,
     QColor,
     QFont,
     QFontMetrics,
+    QIntValidator,
     QLinearGradient,
     QPainter,
     QPainterPath,
@@ -18,6 +20,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLayout,
+    QLineEdit,
     QPushButton,
     QSizePolicy,
     QTabBar,
@@ -697,3 +700,186 @@ class EtatVide(QWidget):
         self.texte.setVisible(bool(texte))
         self.bouton.setText(bouton)
         self.bouton.setVisible(bool(bouton))
+
+
+class ListeChoix(QAbstractButton):
+    change = Signal()
+
+    def __init__(self, choix, parent=None):
+        super().__init__(parent)
+        self.choix = list(choix)
+        self.valeur = self.choix[0][0] if self.choix else None
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedHeight(36)
+        self.clicked.connect(self.ouvrir)
+
+    def texte(self):
+        return dict(self.choix).get(self.valeur, "")
+
+    def definir(self, valeur):
+        if valeur in dict(self.choix):
+            self.valeur = valeur
+            self.update()
+
+    def sizeHint(self):
+        metrique = QFontMetrics(self.font())
+        largeur = max((metrique.horizontalAdvance(texte) for _, texte in self.choix), default=60)
+        return QSize(largeur + 52, 36)
+
+    def ouvrir(self):
+        menu = theme.creer_menu(self)
+        groupe = QActionGroup(menu)
+        actions = {}
+        for valeur, texte in self.choix:
+            action = menu.addAction(texte)
+            action.setCheckable(True)
+            action.setChecked(valeur == self.valeur)
+            groupe.addAction(action)
+            actions[action] = valeur
+        menu.setMinimumWidth(self.width())
+        choisie = menu.exec(self.mapToGlobal(QPoint(0, self.height() + 4)))
+        menu.deleteLater()
+        if choisie in actions and actions[choisie] != self.valeur:
+            self.valeur = actions[choisie]
+            self.update()
+            self.change.emit()
+
+    def enterEvent(self, event):
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event):
+        super().leaveEvent(event)
+        self.update()
+
+    def paintEvent(self, event):
+        peintre = QPainter(self)
+        peintre.setRenderHint(QPainter.RenderHint.Antialiasing)
+        survol = self.underMouse() or self.hasFocus()
+        peintre.setPen(QPen(theme.couleur("TEXTE_ETEINT" if survol else "BORDURE"), 1))
+        peintre.setBrush(theme.couleur("SURFACE"))
+        peintre.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8, 8)
+        peintre.setPen(theme.couleur("TEXTE"))
+        peintre.setFont(self.font())
+        texte = QFontMetrics(self.font()).elidedText(self.texte(), Qt.TextElideMode.ElideRight, self.width() - 52)
+        peintre.drawText(QRectF(12, 0, self.width() - 40, self.height()), Qt.AlignmentFlag.AlignVCenter, texte)
+        couleur = theme.TEXTE if survol else theme.TEXTE_DOUX
+        peintre.drawPixmap(QPointF(self.width() - 28, self.height() / 2 - 8), icones.pixmap("chevron-down", couleur, 16))
+
+
+class Segments(QFrame):
+    change = Signal()
+
+    def __init__(self, choix, parent=None):
+        super().__init__(parent)
+        self.setObjectName("segments")
+        self.boutons = {}
+        self.groupe = QButtonGroup(self)
+        self.groupe.setExclusive(True)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(3, 3, 3, 3)
+        layout.setSpacing(2)
+        for valeur, texte in choix:
+            bouton = QPushButton(texte)
+            bouton.setObjectName("segment_texte")
+            bouton.setCheckable(True)
+            bouton.setCursor(Qt.CursorShape.PointingHandCursor)
+            bouton.clicked.connect(self.change)
+            self.groupe.addButton(bouton)
+            self.boutons[valeur] = bouton
+            layout.addWidget(bouton)
+        if choix:
+            self.boutons[choix[0][0]].setChecked(True)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+    def valeur(self):
+        for valeur, bouton in self.boutons.items():
+            if bouton.isChecked():
+                return valeur
+        return None
+
+    def definir(self, valeur):
+        if valeur in self.boutons:
+            self.boutons[valeur].setChecked(True)
+
+
+class ChampNombre(QWidget):
+    change = Signal(int)
+
+    def __init__(self, minimum, maximum, pas=1, unite="", parent=None):
+        super().__init__(parent)
+        self.minimum = minimum
+        self.maximum = maximum
+        self.pas = pas
+        self.nombre = minimum
+        self.moins = QPushButton("")
+        self.moins.setObjectName("rond")
+        icones.lier(self.moins, "minus", 13, "TEXTE", "TEXTE")
+        self.plus = QPushButton("")
+        self.plus.setObjectName("rond_or")
+        icones.lier(self.plus, "plus", 13, "OR_CLAIR", "OR_CLAIR")
+        for bouton in (self.moins, self.plus):
+            bouton.setCursor(Qt.CursorShape.PointingHandCursor)
+            bouton.setAutoRepeat(True)
+        self.champ = QLineEdit(str(minimum))
+        self.champ.setObjectName("nombre")
+        self.champ.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.champ.setValidator(QIntValidator(0, 99999, self))
+        self.champ.setFixedWidth(64 if unite else 48)
+        self.champ.installEventFilter(self)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        layout.addWidget(self.moins)
+        layout.addWidget(self.champ)
+        layout.addWidget(self.plus)
+        if unite:
+            texte = QLabel(unite)
+            texte.setObjectName("sous_titre")
+            layout.addSpacing(2)
+            layout.addWidget(texte)
+        self.moins.clicked.connect(lambda: self.definir(self.nombre - self.pas))
+        self.plus.clicked.connect(lambda: self.definir(self.nombre + self.pas))
+        self.champ.editingFinished.connect(self.saisie_finie)
+        self.actualiser_boutons()
+
+    def valeur(self):
+        return self.nombre
+
+    def definir(self, valeur):
+        valeur = max(self.minimum, min(self.maximum, valeur))
+        self.champ.setText(str(valeur))
+        if valeur != self.nombre:
+            self.nombre = valeur
+            self.actualiser_boutons()
+            self.change.emit(valeur)
+        else:
+            self.actualiser_boutons()
+
+    def definir_limites(self, minimum, maximum, pas=None):
+        self.minimum = minimum
+        self.maximum = maximum
+        if pas is not None:
+            self.pas = pas
+        self.definir(self.nombre)
+
+    def saisie_finie(self):
+        texte = self.champ.text()
+        self.definir(int(texte) if texte.isdigit() else self.nombre)
+
+    def actualiser_boutons(self):
+        self.moins.setEnabled(self.nombre > self.minimum)
+        self.plus.setEnabled(self.nombre < self.maximum)
+
+    def eventFilter(self, objet, evenement):
+        if objet is self.champ and evenement.type() == QEvent.Type.KeyPress:
+            if evenement.key() == Qt.Key.Key_Up:
+                self.definir(self.nombre + self.pas)
+                return True
+            if evenement.key() == Qt.Key.Key_Down:
+                self.definir(self.nombre - self.pas)
+                return True
+        if objet is self.champ and evenement.type() == QEvent.Type.Wheel:
+            self.definir(self.nombre + (self.pas if evenement.angleDelta().y() > 0 else -self.pas))
+            return True
+        return super().eventFilter(objet, evenement)

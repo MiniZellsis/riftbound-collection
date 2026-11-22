@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.donnees import catalogue
+from app.donnees.classeurs import decrire_position, position
 from app.donnees.collection import version_vide
 from app.donnees.images import (
     DELAI_MAX,
@@ -31,6 +32,35 @@ COULEURS = dict(theme.DOMAINES + theme.RARETES)
 DELAI_SAUVEGARDE = 700
 LARGEUR = 372
 HAUTEUR_LIGNE = 24
+EMPLACEMENTS_MONTRES = 3
+
+
+def menu_ranger(menu, classeurs, carte_id):
+    deja = {}
+    for classeur, pochette in classeurs.emplacements(carte_id):
+        deja.setdefault(classeur["id"], pochette)
+    actions = {}
+    for classeur in classeurs.liste:
+        texte = classeur["nom"]
+        libre = classeurs.premiere_libre(classeur["id"])
+        if classeur["id"] in deja:
+            texte += f"  ·  déjà page {position(classeur, deja[classeur['id']])[0]}"
+        elif libre is None:
+            texte += "  ·  plein"
+        action = menu.addAction(texte)
+        action.setEnabled(classeur["id"] not in deja and libre is not None)
+        actions[action] = classeur["id"]
+    return actions
+
+
+def ranger(classeurs, classeur_id, carte_id):
+    pochette = classeurs.ranger(classeur_id, carte_id)
+    classeur = classeurs.classeur(classeur_id)
+    carte = catalogue.lire_carte(carte_id)
+    if pochette is not None and carte is not None:
+        classeurs.message.emit(
+            f"{carte['nom']} rangée dans « {classeur['nom']} » : {decrire_position(classeur, pochette)}."
+        )
 
 
 def image_icone(nom, ratio):
@@ -126,11 +156,12 @@ class PanneauCarte(QFrame):
     ferme = Signal()
     modifiee = Signal(str)
 
-    def __init__(self, collection, parent=None):
+    def __init__(self, collection, classeurs=None, parent=None):
         super().__init__(parent)
         self.setObjectName("panneau")
         self.setFixedWidth(LARGEUR)
         self.collection = collection
+        self.classeurs = classeurs
         self.carte = None
         self.seule_foil = False
         self.versions = {}
@@ -194,6 +225,27 @@ class PanneauCarte(QFrame):
         self.message.setWordWrap(True)
         self.message.hide()
 
+        self.section_classeurs = QWidget()
+        self.bouton_ranger = QPushButton("")
+        self.bouton_ranger.setObjectName("icone")
+        self.bouton_ranger.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.bouton_ranger.setToolTip("Ranger dans un classeur")
+        icones.lier(self.bouton_ranger, "book-plus", 16, "OR_CLAIR", "OR_CLAIR")
+        self.bouton_ranger.clicked.connect(self.ouvrir_menu_ranger)
+        entete_classeurs = QHBoxLayout()
+        entete_classeurs.setSpacing(10)
+        entete_classeurs.addWidget(Titre("Dans mes classeurs", "titre_section"))
+        entete_classeurs.addWidget(Filet(), stretch=1, alignment=Qt.AlignmentFlag.AlignVCenter)
+        entete_classeurs.addWidget(self.bouton_ranger)
+        self.lignes_classeurs = QVBoxLayout()
+        self.lignes_classeurs.setSpacing(2)
+        disposition_classeurs = QVBoxLayout(self.section_classeurs)
+        disposition_classeurs.setContentsMargins(0, 0, 0, 0)
+        disposition_classeurs.setSpacing(4)
+        disposition_classeurs.addLayout(entete_classeurs)
+        disposition_classeurs.addLayout(self.lignes_classeurs)
+        self.section_classeurs.hide()
+
         self.bouton_prix = QPushButton("Voir le prix sur TCGplayer")
         self.bouton_prix.setCursor(Qt.CursorShape.PointingHandCursor)
         self.bouton_prix.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
@@ -215,6 +267,7 @@ class PanneauCarte(QFrame):
         layout.addWidget(self.info_foil)
         layout.addWidget(self.statut)
         layout.addWidget(self.message)
+        layout.addWidget(self.section_classeurs)
         layout.addStretch()
         layout.addWidget(self.bouton_prix)
 
@@ -242,6 +295,8 @@ class PanneauCarte(QFrame):
 
         self.collection.envoi_reussi.connect(self.envoi_reussi)
         self.collection.envoi_echoue.connect(self.envoi_echoue)
+        if self.classeurs is not None:
+            self.classeurs.change.connect(self.afficher_classeurs)
 
     def creer_ligne(self, tableau, ligne, foil, texte, nom_icone):
         quantite = Compteur()
@@ -285,7 +340,64 @@ class PanneauCarte(QFrame):
         self.effacer_statut()
         self.message.hide()
         self.recharger()
+        self.afficher_classeurs()
         self.charger_image()
+
+    def afficher_classeurs(self):
+        utile = (
+            self.carte is not None
+            and self.classeurs is not None
+            and self.classeurs.chargee
+            and bool(self.classeurs.liste)
+        )
+        self.section_classeurs.setVisible(utile)
+        if not utile:
+            return
+        while self.lignes_classeurs.count():
+            element = self.lignes_classeurs.takeAt(0)
+            if element.widget() is not None:
+                element.widget().hide()
+                element.widget().deleteLater()
+        emplacements = self.classeurs.emplacements(self.carte["carte_id"])
+        for classeur, pochette in emplacements[:EMPLACEMENTS_MONTRES]:
+            self.lignes_classeurs.addWidget(self.ligne_classeur(classeur, pochette))
+        reste = len(emplacements) - EMPLACEMENTS_MONTRES
+        if reste > 0:
+            self.lignes_classeurs.addWidget(etiquette("aide", f"et {reste} autre{'s' if reste > 1 else ''} pochette{'s' if reste > 1 else ''}"))
+        if not emplacements:
+            texte = QLabel("Cette carte n'est dans aucun classeur.")
+            texte.setObjectName("aide")
+            self.lignes_classeurs.addWidget(texte)
+
+    def ligne_classeur(self, classeur, pochette):
+        ligne = QWidget()
+        disposition = QHBoxLayout(ligne)
+        disposition.setContentsMargins(0, 0, 0, 0)
+        disposition.setSpacing(8)
+        icone = QLabel()
+        icones.lier_image(icone, "map-pin", 14, "OR_CLAIR")
+        texte = QLabel(f"<b>{classeur['nom']}</b> · {decrire_position(classeur, pochette)}")
+        texte.setObjectName("emplacement")
+        texte.setWordWrap(True)
+        voir = QPushButton("Voir")
+        voir.setObjectName("lien")
+        voir.setCursor(Qt.CursorShape.PointingHandCursor)
+        voir.setToolTip("Ouvrir le classeur à cette page")
+        voir.clicked.connect(lambda: self.classeurs.ouverture_demandee.emit(classeur["id"], pochette))
+        disposition.addWidget(icone, alignment=Qt.AlignmentFlag.AlignTop)
+        disposition.addWidget(texte, stretch=1)
+        disposition.addWidget(voir, alignment=Qt.AlignmentFlag.AlignTop)
+        return ligne
+
+    def ouvrir_menu_ranger(self):
+        if self.carte is None:
+            return
+        menu = theme.creer_menu(self)
+        actions = menu_ranger(menu, self.classeurs, self.carte["carte_id"])
+        choix = menu.exec(self.bouton_ranger.mapToGlobal(self.bouton_ranger.rect().bottomLeft()))
+        menu.deleteLater()
+        if choix in actions:
+            ranger(self.classeurs, actions[choix], self.carte["carte_id"])
 
     def afficher_meta(self):
         carte = self.carte
@@ -297,8 +409,8 @@ class PanneauCarte(QFrame):
         self.type.setVisible(bool(type_carte))
         self.separateur_type.setVisible(bool(rarete and type_carte))
         self.separateur_domaines.setVisible(bool(domaines) and bool(rarete or type_carte))
-        for position, element in enumerate(self.domaines):
-            element.definir(domaines[position] if position < len(domaines) else "")
+        for rang, element in enumerate(self.domaines):
+            element.definir(domaines[rang] if rang < len(domaines) else "")
         version = self.texte_version()
         self.version.setText(version)
         self.version.setVisible(bool(version))

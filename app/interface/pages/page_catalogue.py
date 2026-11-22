@@ -8,19 +8,16 @@ from app.interface.composants.elements import Onglets, Titre
 from app.interface.composants.grille_cartes import ReglageTaille
 from app.interface.composants.zone_cartes import ZoneCartes
 
-NOM_PROMOS = "Promos"
-
-
 class PageCatalogue(QWidget):
     set_affiche = Signal(list)
 
-    def __init__(self, collection, parent=None):
+    def __init__(self, collection, classeurs=None, parent=None):
         super().__init__(parent)
         self.collection = collection
         self.sets = {}
 
         self.onglets = Onglets()
-        self.zone = ZoneCartes(collection)
+        self.zone = ZoneCartes(collection, classeurs)
         self.grille = self.zone.grille
         self.reglage = ReglageTaille(self.grille)
 
@@ -84,11 +81,7 @@ class PageCatalogue(QWidget):
     def charger(self):
         self.sets = {}
         for carte in catalogue.lister_cartes():
-            if "Promotional" in (carte["set_nom"] or ""):
-                nom = NOM_PROMOS
-            else:
-                nom = carte["set_nom"]
-            self.sets.setdefault(nom, []).append(carte)
+            self.sets.setdefault(catalogue.groupe_set(carte["set_nom"]), []).append(carte)
 
         dernier = QSettings().value("set_choisi", "")
         self.onglets.blockSignals(True)
@@ -163,7 +156,7 @@ class PageCatalogue(QWidget):
 
         fort = f"color: {theme.TEXTE}; font-weight: 600"
         separateur = f'<span style="color: {theme.TEXTE_ETEINT}">&nbsp;&nbsp;·&nbsp;&nbsp;</span>'
-        if self.nom_set() == NOM_PROMOS or not de_base:
+        if self.nom_set() == catalogue.NOM_PROMOS or not de_base:
             texte = f'<span style="{fort}">{possedees} / {len(cartes)}</span> cartes possédées'
             valeur, total = possedees, len(cartes)
         else:

@@ -16,6 +16,7 @@ app/
 │   ├── import_catalogue.py    téléchargement du catalogue depuis Riftcodex
 │   ├── images.py              images des cartes et icônes officielles
 │   ├── collection.py          collection du joueur et sauvegarde en arrière-plan
+│   ├── classeurs.py           classeurs, pochettes, remplissage automatique, sauvegarde en arrière-plan
 │   ├── supabase_client.py     comptes, connexion et requêtes Supabase
 │   └── mises_a_jour.py        vérification des nouvelles versions sur GitHub
 └── interface/             tout ce qui s'affiche
@@ -23,7 +24,7 @@ app/
     ├── icones.py              icônes SVG recolorées selon le thème
     ├── fenetre_connexion.py   connexion et inscription
     ├── fenetre_principale.py  barre latérale et pages
-    ├── pages/                 une page par entrée de la barre latérale
+    ├── pages/                 une page par entrée de la barre latérale (page_classeurs.py : les classeurs)
     └── composants/            morceaux réutilisés par les pages (grille, panneau, filtres, effets 3D…)
                                elements.py : titres, cartes, interrupteur, avatar, choix du thème,
                                onglets avec nombre, pastille d'état, état vide, mise en page en flux
@@ -43,6 +44,14 @@ Règle à garder : un fichier de `donnees/` n'importe jamais rien de `interface/
 - Code imprimé d'une carte (« OGN 019 / 298 ») : `catalogue.code_affiche(carte, avec_total)`. Il est tiré du code Riftcodex (`ogn-019-298`).
 - Pastilles de la grille : dorée = exemplaires possédés, contour arc-en-ciel = au moins une foil, cœur bleu = carte recherchée mais pas encore possédée.
 
+## Classeurs
+
+- Un classeur a un format (colonnes × rangées par page), un nombre de pages et une couleur. Ses pochettes sont numérotées à partir de 0, page après page : la pochette `n` est en page `n // (colonnes × rangées) + 1`. Changer le format garde l'ordre des cartes.
+- Une pochette garde seulement la carte et les exemplaires qu'elle compte (`toutes`, `normale` ou `foil`). Le nombre affiché vient de la collection : rien n'est saisi deux fois. Une carte qu'on n'a pas reste pâle dans sa pochette.
+- `classeurs.py` (données) : liste, contenu, créer, modifier, supprimer, placer, déplacer (échange si la pochette d'arrivée est prise), vider, remplir. Chaque changement s'affiche tout de suite et part au serveur dans un fil à part, dans l'ordre. Si un envoi rate, l'appli relit les classeurs du serveur dès qu'elle le peut.
+- Interface : `composants/vue_classeur.py` dessine le classeur ouvert (double page, anneaux, glisser-déposer, clavier), `composants/fenetres_classeur.py` contient les fenêtres Nouveau / Modifier, Remplir et Choisir une carte.
+- Si les tables n'existent pas sur le serveur, la page Classeurs le dit et demande de lancer `supabase/3_classeurs.sql`.
+
 ## Lancer depuis le code
 
 1. `pip install -r requirements.txt`
@@ -55,8 +64,9 @@ Dans un nouveau projet Supabase, ouvrir « SQL Editor » et lancer, une seule fo
 
 1. `supabase/1_tables.sql` : tables, sécurité ligne par ligne, création du profil à l'inscription.
 2. `supabase/2_echanges.sql` : contact des joueurs et recherche des échanges.
+3. `supabase/3_classeurs.sql` : tables `classeurs` et `classeur_pochettes`, chacun ne voit et ne modifie que ses classeurs.
 
-Une prochaine modification du serveur ira dans un nouveau fichier `3_....sql`.
+Une prochaine modification du serveur ira dans un nouveau fichier `4_....sql`. Sur un serveur qui existe déjà, on ne lance que les fichiers nouveaux.
 
 ## Inscriptions (réglages Supabase)
 

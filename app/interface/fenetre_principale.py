@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.donnees import catalogue, supabase_client
+from app.donnees.classeurs import Classeurs
 from app.donnees.collection import Collection
 from app.donnees.images import TelechargementImages
 from app.donnees.import_catalogue import ImportCatalogue
@@ -23,15 +24,17 @@ from app.infos import ICONE, NOM
 from app.interface import icones, theme
 from app.interface.composants.elements import THEMES, Avatar, BoutonMenu, ChoixTheme, Separateur
 from app.interface.pages.page_catalogue import PageCatalogue
+from app.interface.pages.page_classeurs import PageClasseurs
 from app.interface.pages.page_collection import PageCollection
 from app.interface.pages.page_echanges import PageEchanges
 from app.interface.pages.page_progression import PageProgression
 from app.interface.pages.page_reglages import PageReglages
 
-PAGES = ["Catalogue", "Ma collection", "Échanges", "Progression", "Réglages"]
+PAGES = ["Catalogue", "Ma collection", "Classeurs", "Échanges", "Progression", "Réglages"]
 ICONES_PAGES = {
     "Catalogue": "library-big",
     "Ma collection": "gem",
+    "Classeurs": "book-open",
     "Échanges": "arrow-left-right",
     "Progression": "trophy",
     "Réglages": "settings",
@@ -128,6 +131,7 @@ class FenetrePrincipale(QMainWindow):
             self.resize(1280, 800)
 
         self.collection = Collection(user_id)
+        self.classeurs = Classeurs(user_id)
         self.pseudo = None
         self.verification_manuelle = False
         erreur_chargement = ""
@@ -136,9 +140,14 @@ class FenetrePrincipale(QMainWindow):
             self.collection.charger()
         except supabase_client.ErreurSupabase as erreur:
             erreur_chargement = str(erreur)
+        if self.collection.chargee:
+            self.classeurs.charger()
+        else:
+            self.classeurs.erreur = f"Classeurs indisponibles : {erreur_chargement}"
 
-        self.page_catalogue = PageCatalogue(self.collection)
-        self.page_collection = PageCollection(self.collection)
+        self.page_catalogue = PageCatalogue(self.collection, self.classeurs)
+        self.page_collection = PageCollection(self.collection, self.classeurs)
+        self.page_classeurs = PageClasseurs(self.collection, self.classeurs)
         self.page_echanges = PageEchanges(self.collection, self.pseudo)
         self.page_progression = PageProgression(self.collection)
         self.page_reglages = PageReglages(self.pseudo)
@@ -173,6 +182,7 @@ class FenetrePrincipale(QMainWindow):
 
         layout_barre.addWidget(self.ajouter_page("Catalogue", self.page_catalogue, False))
         layout_barre.addWidget(self.ajouter_page("Ma collection", self.page_collection, True))
+        layout_barre.addWidget(self.ajouter_page("Classeurs", self.page_classeurs, True))
         separateur = Separateur()
         separateur.setContentsMargins(0, 0, 0, 0)
         layout_barre.addSpacing(6)
@@ -241,6 +251,7 @@ class FenetrePrincipale(QMainWindow):
         self.telechargement.termine.connect(self.images_terminees)
         self.telechargement.image_prete.connect(self.page_catalogue.grille.image_telechargee)
         self.telechargement.image_prete.connect(self.page_collection.grille.image_telechargee)
+        self.telechargement.image_prete.connect(self.page_classeurs.vue.image_telechargee)
         self.telechargement.image_prete.connect(self.page_catalogue.barre_filtres.icone_telechargee)
         self.page_catalogue.set_affiche.connect(self.telechargement.prioriser)
 
@@ -250,6 +261,10 @@ class FenetrePrincipale(QMainWindow):
         self.carte_joueur.bouton.clicked.connect(self.ouvrir_menu_compte)
         self.collection.envoi_echoue.connect(self.envoi_echoue)
         self.collection.envoi_reussi.connect(lambda carte_id: self.carte_joueur.definir_etat("ok"))
+        self.classeurs.envoi_echoue.connect(self.envoi_classeur_echoue)
+        self.classeurs.envoi_reussi.connect(lambda: self.carte_joueur.definir_etat("ok"))
+        self.classeurs.message.connect(lambda texte: self.statusBar().showMessage(texte, 6000))
+        self.classeurs.ouverture_demandee.connect(self.ouvrir_classeur)
 
         self.verification = VerificationMiseAJour(self)
         self.verification.resultat.connect(self.verification_terminee)
@@ -334,19 +349,31 @@ class FenetrePrincipale(QMainWindow):
         nom = carte["nom"] if carte is not None else carte_id
         self.statusBar().showMessage(f"⚠ {nom} : pas enregistré. {erreur}", 15000)
 
+    def envoi_classeur_echoue(self, erreur):
+        self.carte_joueur.definir_etat("erreur")
+        self.statusBar().showMessage(f"⚠ Classeur pas enregistré. {erreur}", 15000)
+
+    def ouvrir_classeur(self, classeur_id, pochette):
+        self.aller_a("Classeurs")
+        self.page_classeurs.montrer(classeur_id, pochette)
+
     def enregistrer_en_attente(self):
         self.page_catalogue.zone.enregistrer_maintenant()
         self.page_collection.zone.enregistrer_maintenant()
+        self.page_classeurs.enregistrer_maintenant()
 
     def terminer_envois(self):
         self.enregistrer_en_attente()
-        if not self.collection.attendre_envois():
+        collection_ok = self.collection.attendre_envois()
+        classeurs_ok = self.classeurs.attendre_envois()
+        if not (collection_ok and classeurs_ok):
             QMessageBox.warning(
                 self,
                 "Collection",
                 "Certains changements n'ont pas pu être enregistrés. Vérifie ta connexion Internet.",
             )
         self.collection.arreter()
+        self.classeurs.arreter()
 
     def preparer_catalogue(self):
         nombre = self.telechargement.demarrer(catalogue.lister_cartes())

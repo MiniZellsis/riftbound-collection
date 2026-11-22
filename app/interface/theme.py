@@ -75,6 +75,17 @@ DOMAINES = [
     ("Colorless", "#8f9bb3"),
 ]
 
+COUVERTURES = [
+    ("nuit", "Bleu nuit", "#1f2d52"),
+    ("noir", "Noir", "#1c1e24"),
+    ("rouge", "Rouge", "#8a2330"),
+    ("vert", "Vert", "#22573f"),
+    ("violet", "Violet", "#4a2e70"),
+    ("bleu", "Bleu", "#1f5a8a"),
+    ("or", "Or", "#8c6a1f"),
+    ("gris", "Gris", "#55606f"),
+]
+
 RARETES = [
     ("Common", "#a4b8aa"),
     ("Uncommon", "#41b4b8"),
@@ -97,6 +108,13 @@ _signaux = None
 
 class Signaux(QObject):
     change = Signal()
+
+
+def couleur_couverture(nom):
+    for valeur, _, couleur in COUVERTURES:
+        if valeur == nom:
+            return couleur
+    return COUVERTURES[0][2]
 
 
 def signaux():
@@ -434,6 +452,21 @@ QLabel#grand_pourcentage {{
     font-size: 22px;
     color: {p['OR_CLAIR']};
 }}
+QLabel#texte_pochette {{
+    color: {p['TEXTE_DOUX']};
+}}
+QLabel#emplacement {{
+    font-size: 12px;
+    color: {p['TEXTE_DOUX']};
+}}
+QFrame#resume_remplir {{
+    background: {p['SURFACE']};
+    border: 1px solid {p['BORDURE']};
+    border-radius: 10px;
+}}
+QFrame#resume_remplir QLabel {{
+    color: {p['TEXTE_DOUX']};
+}}
 QLabel#chiffres_set {{
     color: {p['TEXTE_DOUX']};
     font-weight: 600;
@@ -561,6 +594,41 @@ QPushButton#segment:checked {{
     background: {p['SURFACE_HAUTE']};
     border-color: {trait_or};
 }}
+QPushButton#segment_texte {{
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    padding: 5px 12px;
+    color: {p['TEXTE_DOUX']};
+}}
+QPushButton#segment_texte:hover {{
+    background: {p['SURFACE']};
+    color: {p['TEXTE']};
+}}
+QPushButton#segment_texte:checked {{
+    background: {p['SURFACE_HAUTE']};
+    border-color: {trait_or};
+    color: {p['OR_CLAIR']};
+    font-weight: 600;
+}}
+QPushButton#fleche {{
+    background: {p['SURFACE']};
+    border: 1px solid {p['BORDURE']};
+    border-radius: 20px;
+    min-width: 38px;
+    max-width: 38px;
+    min-height: 38px;
+    max-height: 38px;
+    padding: 0;
+}}
+QPushButton#fleche:hover {{
+    border-color: {p['OR']};
+    background: {p['SURFACE_HAUTE']};
+}}
+QPushButton#fleche:disabled {{
+    background: transparent;
+    border-color: transparent;
+}}
 QPushButton#lien {{
     background: transparent;
     border: none;
@@ -619,6 +687,10 @@ QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
 QLineEdit#recherche {{
     min-height: 22px;
     padding: 6px 10px;
+}}
+QLineEdit#nombre {{
+    padding: 5px 4px;
+    font-weight: 600;
 }}
 QCheckBox {{
     spacing: 8px;

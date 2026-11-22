@@ -33,13 +33,23 @@ Au premier lancement, Windows peut afficher « Windows a protégé votre ordinat
 - Les cartes que tu n'as pas sont affichées en pâle.
 - Les cartes Rare, Epic et Showcase n'existent qu'en foil : elles sont comptées en foil automatiquement.
 
+### Classeurs
+
+- **Nouveau classeur :** choisis le même format que ton vrai classeur (pochettes par page et capacité) et sa couleur.
+- **Remplir :** le logiciel range tes cartes dans l'ordre (set, puis numéro). Tu peux aussi garder une pochette vide pour chaque carte qui te manque.
+- **À la main :** double-clic sur une pochette vide pour y placer une carte, glisser-déposer pour déplacer une carte, Suppr pour vider une pochette.
+- Le nombre sur une pochette (×2, ×3) est celui de ta collection : rien à saisir deux fois.
+- Dans le détail d'une carte, la partie **Dans mes classeurs** dit où elle est rangée (page, rangée, colonne). « Voir » ouvre le classeur à la bonne page.
+
 ### Raccourcis clavier
 
 | Touches | Action |
 |---|---|
 | Ctrl+F | Rechercher une carte |
-| Ctrl+1 à Ctrl+5 | Changer de page |
-| Flèches | Passer d'une carte à l'autre |
+| Ctrl+1 à Ctrl+6 | Changer de page |
+| Flèches | Passer d'une carte ou d'une pochette à l'autre |
+| Page préc. / Page suiv. | Tourner les pages d'un classeur |
+| Suppr | Vider la pochette choisie |
 | Échap | Fermer le détail d'une carte |
 
 ## Mises à jour
