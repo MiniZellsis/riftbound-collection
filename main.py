@@ -5,10 +5,12 @@ from PySide6.QtGui import QIcon
 from PySide6.QtNetwork import QNetworkProxyFactory, QSslConfiguration
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from app import catalogue, journal, supabase_client, theme
-from app.fenetre_connexion import FenetreConnexion
-from app.fenetre_principale import FenetrePrincipale
+from app import journal
+from app.donnees import catalogue, supabase_client
 from app.infos import ICONE, ID_WINDOWS, VERSION
+from app.interface import theme
+from app.interface.fenetre_connexion import FenetreConnexion
+from app.interface.fenetre_principale import FenetrePrincipale
 
 
 def afficher_erreur(type_erreur, erreur, trace):
